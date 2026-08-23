@@ -2470,7 +2470,7 @@ body.night .loc-addr { color: #a1a1a6 !important; }
 
 // ===== IndexedDB 扩容存储 =====
 const IDB_NAME = 'graychat_idb';
-const EENOK_BUILD = '2026-08-22K';
+const EENOK_BUILD = '2026-08-22N';
 /** 检测版本变化；进入主界面后弹出「已更新」提醒 */
 function checkAppUpdate() {
   try {
@@ -11048,12 +11048,22 @@ function saveApi() {
   state.api.model = document.getElementById('apiModel').value.trim();
   state.api.temperature = parseFloat(document.getElementById('apiTemp').value) || 0.7;
   state.api.maxTokens = parseInt(document.getElementById('apiMaxTok').value, 10) || 4096;
+  // 语音/生图已独立设置页：主聊天 API 保存时不得覆盖/清空它们
   try {
-    state.api.voiceUrl = (document.getElementById('apiVoiceUrl')||{}).value || '';
-    state.api.voiceModel = (document.getElementById('apiVoiceModel')||{}).value || 'tts-1';
-    state.api.voiceName = (document.getElementById('apiVoiceName')||{}).value || 'alloy';
-    state.api.imgUrl = (document.getElementById('apiImgUrl')||{}).value || '';
-    state.api.imgModel = (document.getElementById('apiImgModel')||{}).value || 'dall-e-3';
+    var vu = document.getElementById('apiVoiceUrl');
+    if (vu) {
+      state.api.voiceUrl = normalizeApiBase(vu.value || '');
+      var vm = document.getElementById('apiVoiceModel');
+      if (vm) state.api.voiceModel = (vm.value || 'tts-1').trim();
+      var vn = document.getElementById('apiVoiceName');
+      if (vn) state.api.voiceName = (vn.value || 'alloy').trim();
+    }
+    var iu = document.getElementById('apiImgUrl');
+    if (iu) {
+      state.api.imgUrl = normalizeApiBase(iu.value || '');
+      var im = document.getElementById('apiImgModel');
+      if (im) state.api.imgModel = (im.value || 'dall-e-3').trim();
+    }
   } catch(e) {}
   save(); closeModal(); showToast('API 设置已保存');
 }
@@ -11061,6 +11071,7 @@ function openVoiceApi() {
   if (!state.api) state.api = {};
   const region = state.api.voiceRegion || 'overseas';
   const providers = [
+    {id:'minimax', name:'MiniMax 语音', url:'https://api.minimaxi.com/v1', region:'cn'},
     {id:'openai', name:'OpenAI TTS', url:'https://api.openai.com/v1', region:'overseas'},
     {id:'azure', name:'Azure OpenAI', url:'', region:'overseas'},
     {id:'siliconflow', name:'SiliconFlow', url:'https://api.siliconflow.cn/v1', region:'cn'},
@@ -11071,7 +11082,7 @@ function openVoiceApi() {
     return '<option value="'+p.id+'" data-url="'+escapeHtml(p.url)+'" '+(state.api.voiceProvider===p.id?'selected':'')+'>'+p.name+(p.region==='cn'?' · 国内':'')+(p.region==='overseas'?' · 海外':'')+'</option>';
   }).join('');
   openModal('语音 API', `
-    <div class="text-sub" style="font-size:12px;margin-bottom:10px;line-height:1.5">兼容 OpenAI 风格 <code>/audio/speech</code>。配置后：聊天点角色语音条、通话点对方说的话，会调用本接口播报。</div>
+    <div class="text-sub" style="font-size:12px;margin-bottom:10px;line-height:1.5">OpenAI 走 <code>/audio/speech</code>；<b>MiniMax</b> 自动走 <code>/t2a_v2</code>（speech-2.8 等）。配置后：聊天语音条、通话、语音留言可播报。</div>
     <div class="form-group"><label>服务商</label>
       <select id="vApiProvider" onchange="onVoiceProviderChange(this)">${provOpts}</select></div>
     <div class="form-group"><label>区域</label>
@@ -11080,6 +11091,7 @@ function openVoiceApi() {
         <option value="cn" ${region==='cn'?'selected':''}>国内</option>
       </select></div>
     <div class="text-sub" style="font-size:12px;margin-bottom:8px;line-height:1.5;color:#8aa">与聊天 API、生图 API <b>完全独立</b>。未填写下方两项时，点击语音只提示「未连接语音 API」，不会调用聊天接口。</div>
+    <div id="vApiStatus" style="font-size:12px;margin-bottom:10px;padding:8px 10px;border-radius:10px;background:${(state.api.voiceUrl&&state.api.voiceKey)?'#e8f8ef':'#f8e8ea'};color:${(state.api.voiceUrl&&state.api.voiceKey)?'#1a7f4b':'#a33'};">当前状态：${(state.api.voiceUrl&&state.api.voiceKey)?'已配置（保存后可试听）':'未连接（请填写 Base URL + API Key）'}</div>
     <div class="form-group"><label>语音 Base URL（必填）</label><input id="vApiUrl" value="${escapeHtml(state.api.voiceUrl || '')}" placeholder="https://api.openai.com/v1 或单独 TTS 地址"></div>
     <div class="form-group"><label>语音 API Key（必填，不回落主 Key）</label><input id="vApiKey" type="password" value="${escapeHtml(state.api.voiceKey || '')}" placeholder="sk-..."></div>
     <div class="form-group"><label>模型</label>
@@ -11099,11 +11111,29 @@ function onVoiceProviderChange(sel) {
   const url = opt && opt.getAttribute('data-url');
   if (url && document.getElementById('vApiUrl')) document.getElementById('vApiUrl').value = url;
   const id = sel.value;
-  if (id === 'siliconflow' || id === 'deepseek') {
+  if (id === 'siliconflow' || id === 'deepseek' || id === 'minimax') {
     const r = document.getElementById('vApiRegion'); if (r) r.value = 'cn';
   } else if (id === 'openai' || id === 'azure') {
     const r = document.getElementById('vApiRegion'); if (r) r.value = 'overseas';
   }
+  if (id === 'minimax') {
+    const m = document.getElementById('vApiModel');
+    if (m && (!m.value || /^(tts-1|alloy)/i.test(m.value) || /^MiniMax-M/i.test(m.value))) m.value = 'speech-2.8-hd';
+    const n = document.getElementById('vApiName');
+    if (n && (!n.value || n.value === 'alloy')) n.value = 'male-qn-qingse';
+  }
+}
+function isMinimaxVoiceUrl(url) {
+  return /minimax/i.test(String(url || ''));
+}
+function hexToAudioBlob(hex, mime) {
+  var clean = String(hex || '').replace(/\s/g, '').replace(/^0x/i, '');
+  if (!clean) throw new Error('空音频');
+  var len = clean.length;
+  if (len % 2) clean = '0' + clean;
+  var arr = new Uint8Array(clean.length / 2);
+  for (var i = 0; i < clean.length; i += 2) arr[i / 2] = parseInt(clean.substr(i, 2), 16);
+  return new Blob([arr], { type: mime || 'audio/mpeg' });
 }
 function saveVoiceApi() {
   if (!state.api) state.api = {};
@@ -11113,8 +11143,15 @@ function saveVoiceApi() {
   state.api.voiceKey = ((document.getElementById('vApiKey')||{}).value || '').trim();
   state.api.voiceModel = ((document.getElementById('vApiModel')||{}).value || 'tts-1').trim();
   state.api.voiceName = ((document.getElementById('vApiName')||{}).value || 'alloy').trim();
-  save(); closeAllModals(); showToast('语音 API 已保存');
+  if (!state.api.voiceUrl || !state.api.voiceKey) {
+    showToast('请填写语音 Base URL 和 API Key');
+    return;
+  }
+  save();
+  try { closeAllModals(); } catch(e) { try { closeModal(); } catch(e2) {} }
+  showToast('语音 API 已保存并接通');
 }
+
 async function testVoiceApi() {
   try {
     if (document.getElementById('vApiUrl')) {
@@ -11138,6 +11175,20 @@ async function fetchVoiceModels() {
     const key = ((document.getElementById('vApiKey')||{}).value || state.api.voiceKey || state.api.key || '').trim();
     let base = normalizeApiBase((document.getElementById('vApiUrl')||{}).value || state.api.voiceUrl || state.api.baseUrl || '');
     if (!base) { if (box) box.textContent = '请先填 Base URL'; return; }
+    if (typeof isMinimaxVoiceUrl === 'function' && isMinimaxVoiceUrl(base)) {
+      const mm = ['speech-2.8-hd','speech-2.8-turbo','speech-2.6-hd','speech-2.6-turbo','speech-02-hd','speech-02-turbo','speech-01-hd','speech-01-turbo'];
+      if (box) {
+        box.innerHTML = '';
+        mm.forEach(function(id) {
+          var sp = document.createElement('span');
+          sp.style.cssText = 'display:inline-block;padding:2px 8px;margin:2px;border-radius:8px;background:var(--line);cursor:pointer';
+          sp.textContent = id;
+          sp.onclick = function(){ var el=document.getElementById('vApiModel'); if(el) el.value=id; };
+          box.appendChild(sp);
+        });
+      }
+      return;
+    }
     if (box) box.textContent = '获取中…';
     const endpoint = base.replace(/\/+$/, '') + '/models';
     const res = await fetch(endpoint, { headers: key ? { 'Authorization': 'Bearer ' + key } : {} });
@@ -11145,13 +11196,22 @@ async function fetchVoiceModels() {
     const list = (data.data || data.models || []).map(function(m){ return m.id || m.name || String(m); }).filter(Boolean);
     const tts = list.filter(function(id){ return /tts|speech|audio|voice/i.test(id); });
     const show = (tts.length ? tts : list).slice(0, 40);
-    if (box) box.innerHTML = show.length
-      ? show.map(function(id){ return '<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:8px;background:var(--line);cursor:pointer" onclick="document.getElementById(\'vApiModel\').value=\''+String(id).replace(/'/g,"\\'")+'\'">'+escapeHtml(id)+'</span>'; }).join('')
-      : '未返回模型列表（可手填）';
+    if (box) {
+      if (!show.length) { box.textContent = '未返回模型列表（可手填）'; return; }
+      box.innerHTML = '';
+      show.forEach(function(id) {
+        var sp = document.createElement('span');
+        sp.style.cssText = 'display:inline-block;padding:2px 8px;margin:2px;border-radius:8px;background:var(--line);cursor:pointer';
+        sp.textContent = id;
+        sp.onclick = function(){ var el=document.getElementById('vApiModel'); if(el) el.value=id; };
+        box.appendChild(sp);
+      });
+    }
   } catch(e) {
     if (box) box.textContent = '获取失败：' + (e.message||e) + '（可手填）';
   }
 }
+
 async function fetchVoiceVoices() {
   const box = document.getElementById('vApiListBox');
   const common = ['alloy','echo','fable','onyx','nova','shimmer','coral','verse','ballad','ash','sage','amuch','dan'];
@@ -11175,6 +11235,7 @@ function openImageApi() {
     return '<option value="'+s.v+'" '+(curSize===s.v?'selected':'')+'>'+s.lab+'</option>';
   }).join('') + (sizes.some(function(s){return s.v===curSize;}) ? '' : '<option value="'+escapeHtml(curSize)+'" selected>自定义 '+escapeHtml(curSize)+'</option>');
   const imgProviders = [
+    {id:'minimax', name:'MiniMax 生图', url:'https://api.minimaxi.com/v1'},
     {id:'openai', name:'OpenAI DALL·E', url:'https://api.openai.com/v1'},
     {id:'siliconflow', name:'SiliconFlow', url:'https://api.siliconflow.cn/v1'},
     {id:'together', name:'Together / Flux', url:''},
@@ -11191,9 +11252,10 @@ function openImageApi() {
       + '<button type="button" class="btn btn-secondary" style="padding:4px 8px;font-size:11px;color:#e74c3c" onclick="delImgPreset('+i+')">删</button></div>';
   }).join('') || '<div class="text-sub" style="padding:8px 0">暂无预设，可添加风格词</div>';
   openModal('生图 API', `
-    <div class="text-sub" style="font-size:12px;margin-bottom:10px;line-height:1.5">兼容 <code>/images/generations</code>。角色发图时会读取预设词 + 图片描述。</div>
+    <div class="text-sub" style="font-size:12px;margin-bottom:10px;line-height:1.5">OpenAI / SiliconFlow 走 <code>/images/generations</code>；<b>MiniMax</b> 自动走 <code>/image_generation</code>（image-01）。角色发图会读预设词 + 描述。</div>
+    <div style="font-size:12px;margin-bottom:10px;padding:8px 10px;border-radius:10px;background:${(state.api.imgUrl&&state.api.imgKey)?'#e8f8ef':'#f8e8ea'};color:${(state.api.imgUrl&&state.api.imgKey)?'#1a7f4b':'#a33'};">当前状态：${(state.api.imgUrl&&state.api.imgKey)?'已配置':'未连接（请填写 Base URL + API Key）'}</div>
     <div class="form-group"><label>服务商</label>
-      <select id="iApiProvider" onchange="(function(s){var o=s.options[s.selectedIndex];var u=o&&o.getAttribute('data-url');if(u&&document.getElementById('iApiUrl'))document.getElementById('iApiUrl').value=u;})(this)">${imgProvOpts}</select></div>
+      <select id="iApiProvider" onchange="onImageProviderChange(this)">${imgProvOpts}</select></div>
     <div class="text-sub" style="font-size:12px;margin-bottom:8px;line-height:1.5;color:#8aa">与聊天 API、语音 API <b>完全独立</b>。未配置时，聊天/朋友圈等一律用虚拟占位图，不弹「生图中」、不消耗任何接口。</div>
     <div class="form-group"><label>生图 Base URL（必填）</label><input id="iApiUrl" value="${escapeHtml(state.api.imgUrl || '')}" placeholder="https://api.openai.com/v1"></div>
     <div class="form-group"><label>生图 API Key（必填，不回落主 Key）</label><input id="iApiKey" type="password" value="${escapeHtml(state.api.imgKey || '')}" placeholder="sk-..."></div>
@@ -11214,9 +11276,16 @@ function saveImageApi() {
   state.api.imgProvider = ((document.getElementById('iApiProvider')||{}).value || '').trim();
   state.api.imgUrl = normalizeApiBase((document.getElementById('iApiUrl')||{}).value || '');
   state.api.imgKey = ((document.getElementById('iApiKey')||{}).value || '').trim();
-  state.api.imgModel = ((document.getElementById('iApiModel')||{}).value || 'dall-e-3').trim();
+  var defModel = isMinimaxImageUrl(state.api.imgUrl) ? 'image-01' : 'dall-e-3';
+  state.api.imgModel = ((document.getElementById('iApiModel')||{}).value || defModel).trim();
   state.api.imgSize = ((document.getElementById('iApiSize')||{}).value || '1024x1024').trim();
-  save(); closeAllModals(); showToast('生图 API 已保存');
+  if (!state.api.imgUrl || !state.api.imgKey) {
+    showToast('请填写生图 Base URL 和 API Key');
+    return;
+  }
+  save();
+  try { closeAllModals(); } catch(e) { try { closeModal(); } catch(e2) {} }
+  showToast('生图 API 已保存并接通');
 }
 async function fetchImageModels() {
   const box = document.getElementById('iApiListBox');
@@ -11224,20 +11293,43 @@ async function fetchImageModels() {
     const key = ((document.getElementById('iApiKey')||{}).value || state.api.imgKey || state.api.key || '').trim();
     let base = normalizeApiBase((document.getElementById('iApiUrl')||{}).value || state.api.imgUrl || state.api.baseUrl || '');
     if (!base) { if (box) box.textContent = '请先填 Base URL'; return; }
+    if (typeof isMinimaxImageUrl === 'function' && isMinimaxImageUrl(base)) {
+      var mm = ['image-01', 'image-01-live'];
+      if (box) {
+        box.innerHTML = '';
+        mm.forEach(function(id) {
+          var sp = document.createElement('span');
+          sp.style.cssText = 'display:inline-block;padding:2px 8px;margin:2px;border-radius:8px;background:var(--line);cursor:pointer';
+          sp.textContent = id;
+          sp.onclick = function(){ var el=document.getElementById('iApiModel'); if(el) el.value=id; };
+          box.appendChild(sp);
+        });
+      }
+      return;
+    }
     if (box) box.textContent = '获取中…';
     const endpoint = base.replace(/\/+$/, '') + '/models';
     const res = await fetch(endpoint, { headers: key ? { 'Authorization': 'Bearer ' + key } : {} });
     const data = await res.json().catch(function(){ return {}; });
     const list = (data.data || data.models || []).map(function(m){ return m.id || m.name || String(m); }).filter(Boolean);
-    const img = list.filter(function(id){ return /dall|flux|sd|stable|image|midjourney|kolors|qwen.*vl/i.test(id); });
-    const show = (img.length ? img : list).slice(0, 40);
-    if (box) box.innerHTML = show.length
-      ? show.map(function(id){ return '<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:8px;background:var(--line);cursor:pointer" onclick="document.getElementById(\'iApiModel\').value=\''+String(id).replace(/'/g,"\\'")+'\'">'+escapeHtml(id)+'</span>'; }).join('')
-      : '未返回模型列表（可手填 dall-e-3 / flux 等）';
+    const imgs = list.filter(function(id){ return /dall-e|flux|sd|stable|image|midjourney|kolors|hunyuan|cogview|qwen.*image|playground/i.test(id); });
+    const show = (imgs.length ? imgs : list).slice(0, 40);
+    if (box) {
+      if (!show.length) { box.textContent = '未返回模型列表（可手填）'; return; }
+      box.innerHTML = '';
+      show.forEach(function(id) {
+        var sp = document.createElement('span');
+        sp.style.cssText = 'display:inline-block;padding:2px 8px;margin:2px;border-radius:8px;background:var(--line);cursor:pointer';
+        sp.textContent = id;
+        sp.onclick = function(){ var el=document.getElementById('iApiModel'); if(el) el.value=id; };
+        box.appendChild(sp);
+      });
+    }
   } catch(e) {
     if (box) box.textContent = '获取失败：' + (e.message||e) + '（可手填）';
   }
 }
+
 function editImgPreset(i) {
   if (!state.api) state.api = {};
   if (!Array.isArray(state.api.imgPresets)) state.api.imgPresets = [];
@@ -11279,44 +11371,195 @@ function hasChatApi() {
   return !!(state.api && state.api.baseUrl && state.api.key);
 }
 function hasVoiceApi() {
-  return !!(state.api && state.api.voiceUrl && state.api.voiceKey);
+  try {
+    if (!state.api) return false;
+    var u = String(state.api.voiceUrl || '').trim();
+    var k = String(state.api.voiceKey || '').trim();
+    return !!(u && k);
+  } catch(e) { return false; }
 }
 function hasImageApi() {
-  return !!(state.api && state.api.imgUrl && state.api.imgKey);
+  try {
+    if (!state.api) return false;
+    var u = String(state.api.imgUrl || '').trim();
+    var k = String(state.api.imgKey || '').trim();
+    return !!(u && k);
+  } catch(e) { return false; }
+}
+function onImageProviderChange(sel) {
+  try {
+    var o = sel.options[sel.selectedIndex];
+    var u = o && o.getAttribute('data-url');
+    if (u && document.getElementById('iApiUrl')) document.getElementById('iApiUrl').value = u;
+    var id = sel.value;
+    if (id === 'minimax') {
+      var m = document.getElementById('iApiModel');
+      if (m && (!m.value || /dall-e|flux|sdxl/i.test(m.value))) m.value = 'image-01';
+    }
+  } catch(e) {}
+}
+function isMinimaxImageUrl(url) {
+  return /minimax/i.test(String(url || ''));
+}
+/** OpenAI size → MiniMax aspect_ratio */
+function sizeToAspectRatio(size) {
+  var s = String(size || '1024x1024').toLowerCase();
+  if (s === '1024x1024' || s === '512x512') return '1:1';
+  if (s === '1792x1024' || s === '1344x768') return '16:9';
+  if (s === '1024x1792' || s === '768x1344') return '9:16';
+  var m = s.match(/^(\d+)x(\d+)$/);
+  if (m) {
+    var w = +m[1], h = +m[2];
+    if (!w || !h) return '1:1';
+    var r = w / h;
+    if (r > 1.7) return '21:9';
+    if (r > 1.4) return '16:9';
+    if (r > 1.2) return '3:2';
+    if (r > 0.9) return '1:1';
+    if (r > 0.7) return '2:3';
+    return '9:16';
+  }
+  return '1:1';
 }
 async function apiSpeak(text, opts) {
   opts = opts || {};
-  if (!hasVoiceApi()) throw new Error('未连接语音 API');
-  const key = state.api.voiceKey;
-  let base = state.api.voiceUrl;
-  base = normalizeApiBase(base);
+  if (!hasVoiceApi()) throw new Error('未连接语音 API（请到「我的 → 语音 API」填写 URL 与 Key 并保存）');
+  const key = String(state.api.voiceKey || '').trim();
+  let base = normalizeApiBase(state.api.voiceUrl || '');
+  if (!base || !key) throw new Error('未连接语音 API');
+  const inputText = String(text || '').slice(0, 4096);
+  if (!inputText.trim()) throw new Error('没有可播报的文字');
+
+  // —— MiniMax T2A：/v1/t2a_v2，返回 hex 音频 ——
+  if (isMinimaxVoiceUrl(base)) {
+    const endpoint = /\/t2a_v2$/i.test(base) ? base : (base.replace(/\/+$/, '') + '/t2a_v2');
+    const model = opts.model || state.api.voiceModel || 'speech-2.8-hd';
+    const voiceId = opts.voice || state.api.voiceName || 'male-qn-qingse';
+    const body = {
+      model: model,
+      text: inputText,
+      stream: false,
+      voice_setting: {
+        voice_id: voiceId,
+        speed: 1,
+        vol: 1,
+        pitch: 0
+      },
+      audio_setting: {
+        sample_rate: 32000,
+        bitrate: 128000,
+        format: 'mp3',
+        channel: 1
+      },
+      output_format: 'hex'
+    };
+    let res;
+    try {
+      res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify(body)
+      });
+    } catch (netErr) {
+      throw new Error('网络失败：' + (netErr.message || netErr));
+    }
+    const rawText = await res.text();
+    let data = {};
+    try { data = JSON.parse(rawText); } catch (e) { data = {}; }
+    if (!res.ok) {
+      throw new Error(res.status + ' ' + (data.base_resp && data.base_resp.status_msg || rawText || '').toString().slice(0, 160));
+    }
+    if (data.base_resp && data.base_resp.status_code && data.base_resp.status_code !== 0) {
+      throw new Error((data.base_resp.status_msg || 'MiniMax 错误') + ' (' + data.base_resp.status_code + ')');
+    }
+    var hex = (data.data && data.data.audio) || data.audio || data.audio_file || '';
+    if (!hex) throw new Error('MiniMax 未返回音频（检查模型/音色 ID）');
+    // hex 或 base64
+    var blob;
+    if (/^[0-9a-fA-F\s]+$/.test(String(hex).slice(0, 80))) {
+      blob = hexToAudioBlob(hex, 'audio/mpeg');
+    } else {
+      var b64 = String(hex).replace(/^data:audio\/\w+;base64,/, '');
+      var bin = atob(b64);
+      var arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      blob = new Blob([arr], { type: 'audio/mpeg' });
+    }
+    const url = URL.createObjectURL(blob);
+    try {
+      if (window._eenookAudio) { try { window._eenookAudio.pause(); } catch (e) {} }
+      const audio = new Audio(url);
+      window._eenookAudio = audio;
+      await audio.play();
+    } catch (e) {
+      throw new Error('播放失败：' + (e.message || e));
+    }
+    return url;
+  }
+
+  // —— OpenAI 兼容 /audio/speech ——
   const endpoint = /\/audio\/speech$/i.test(base) ? base : (base.replace(/\/+$/, '') + '/audio/speech');
   const body = {
     model: opts.model || state.api.voiceModel || 'tts-1',
-    input: String(text||'').slice(0, 4096),
-    voice: opts.voice || state.api.voiceName || 'alloy'
+    input: inputText,
+    voice: opts.voice || state.api.voiceName || 'alloy',
+    response_format: opts.format || 'mp3'
   };
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(res.status + ' ' + (t||'').slice(0,100));
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify(body)
+    });
+  } catch (netErr) {
+    throw new Error('网络失败：' + (netErr.message || netErr) + '（检查 URL / CORS）');
   }
-  const blob = await res.blob();
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (!res.ok) {
+    let t = '';
+    try { t = await res.text(); } catch (e) {}
+    throw new Error(res.status + ' ' + (t || '').slice(0, 160));
+  }
+  var blob;
+  if (ct.indexOf('application/json') >= 0) {
+    const data = await res.json();
+    if (data && data.url) {
+      const url = data.url;
+      try {
+        if (window._eenookAudio) { try { window._eenookAudio.pause(); } catch (e) {} }
+        const audio = new Audio(url);
+        window._eenookAudio = audio;
+        await audio.play();
+      } catch (e) {
+        throw new Error('播放失败：' + (e.message || e));
+      }
+      return url;
+    }
+    var b64 = (data && (data.data || data.audio || data.base64 || (data.data && data.data[0] && (data.data[0].b64_json || data.data[0].audio)))) || '';
+    if (typeof b64 !== 'string') b64 = '';
+    b64 = b64.replace(/^data:audio\/\w+;base64,/, '');
+    if (!b64) throw new Error('接口返回 JSON 但无音频数据');
+    var bin = atob(b64);
+    var arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    blob = new Blob([arr], { type: 'audio/mpeg' });
+  } else {
+    blob = await res.blob();
+  }
+  if (!blob || blob.size < 32) throw new Error('返回音频为空');
   const url = URL.createObjectURL(blob);
   try {
-    if (window._eenookAudio) { try { window._eenookAudio.pause(); } catch(e) {} }
+    if (window._eenookAudio) { try { window._eenookAudio.pause(); } catch (e) {} }
     const audio = new Audio(url);
     window._eenookAudio = audio;
     await audio.play();
-  } catch(e) {
-    showToast('播放失败：' + (e.message||e));
+  } catch (e) {
+    throw new Error('播放失败：' + (e.message || e));
   }
   return url;
 }
+
 async function playVoiceMessage(idx) {
   try {
     if (!hasVoiceApi()) { showToast('未连接语音 API'); return; }
@@ -11351,30 +11594,85 @@ async function playCallSpeech(logIdx) {
 }
 async function apiGenImage(prompt, opts) {
   opts = opts || {};
-  if (!hasImageApi()) throw new Error('未连接生图 API');
-  const key = state.api.imgKey;
-  let base = state.api.imgUrl;
-  base = normalizeApiBase(base);
+  if (!hasImageApi()) throw new Error('未连接生图 API（请到「我的 → 生图 API」填写 URL 与 Key）');
+  const key = String(state.api.imgKey || '').trim();
+  let base = normalizeApiBase(state.api.imgUrl || '');
+  if (!base || !key) throw new Error('未连接生图 API');
+  const fullPrompt = opts.raw ? String(prompt || '') : buildImagePrompt(prompt);
+  const size = opts.size || state.api.imgSize || '1024x1024';
+
+  // —— MiniMax：/v1/image_generation ——
+  if (typeof isMinimaxImageUrl === 'function' && isMinimaxImageUrl(base)) {
+    const endpoint = /\/image_generation$/i.test(base) ? base : (base.replace(/\/+$/, '') + '/image_generation');
+    const model = opts.model || state.api.imgModel || 'image-01';
+    const body = {
+      model: model,
+      prompt: String(fullPrompt || '').slice(0, 1500),
+      aspect_ratio: sizeToAspectRatio(size),
+      response_format: 'url',
+      n: 1,
+      prompt_optimizer: false
+    };
+    let res;
+    try {
+      res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify(body)
+      });
+    } catch (netErr) {
+      throw new Error('网络失败：' + (netErr.message || netErr));
+    }
+    const data = await res.json().catch(function(){ return {}; });
+    if (!res.ok) {
+      throw new Error(res.status + ' ' + JSON.stringify(data.error || data.base_resp || data).slice(0, 160));
+    }
+    if (data.base_resp && data.base_resp.status_code && data.base_resp.status_code !== 0) {
+      throw new Error((data.base_resp.status_msg || 'MiniMax 生图错误') + ' (' + data.base_resp.status_code + ')');
+    }
+    var urls = (data.data && data.data.image_urls) || data.image_urls || [];
+    var b64s = (data.data && data.data.image_base64) || data.image_base64 || [];
+    if (urls && urls.length && urls[0]) return urls[0];
+    if (b64s && b64s.length && b64s[0]) {
+      var b = String(b64s[0]);
+      if (b.indexOf('data:image') === 0) return b;
+      return 'data:image/jpeg;base64,' + b;
+    }
+    throw new Error('MiniMax 生图无结果（检查模型 image-01）');
+  }
+
+  // —— OpenAI 兼容 /images/generations ——
   const endpoint = /\/images\/generations$/i.test(base) ? base : (base.replace(/\/+$/, '') + '/images/generations');
-  const fullPrompt = opts.raw ? String(prompt||'') : buildImagePrompt(prompt);
   const body = {
     model: opts.model || state.api.imgModel || 'dall-e-3',
-    prompt: fullPrompt.slice(0, 1000),
+    prompt: String(fullPrompt || '').slice(0, 1000),
     n: 1,
-    size: opts.size || state.api.imgSize || '1024x1024'
+    size: size
   };
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-    body: JSON.stringify(body)
-  });
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify(body)
+    });
+  } catch (netErr) {
+    throw new Error('网络失败：' + (netErr.message || netErr) + '（检查 URL / CORS）');
+  }
   const data = await res.json().catch(function(){ return {}; });
-  if (!res.ok) throw new Error(res.status + ' ' + JSON.stringify(data.error||data).slice(0,120));
-  const u = data.data && data.data[0] && (data.data[0].url || data.data[0].b64_json);
-  if (!u) throw new Error('生图无结果');
-  if (String(u).startsWith('http')) return u;
+  if (!res.ok) throw new Error(res.status + ' ' + JSON.stringify(data.error || data).slice(0, 160));
+  const item = data.data && data.data[0];
+  const u = item && (item.url || item.b64_json);
+  if (!u) {
+    // 部分中转：data[0].image / data.url
+    if (data.url) return data.url;
+    if (data.images && data.images[0]) return data.images[0];
+    throw new Error('生图无结果');
+  }
+  if (String(u).startsWith('http') || String(u).indexOf('data:image') === 0) return u;
   return 'data:image/png;base64,' + u;
 }
+
 async function testApiConnection() {
   const url = normalizeApiBase((document.getElementById('apiUrl') || {}).value || '');
   const key = ((document.getElementById('apiKey') || {}).value || '').trim();
