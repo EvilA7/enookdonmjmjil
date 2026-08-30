@@ -170,6 +170,43 @@ body.night .home-polaroid { background: #2c2c2e; }
   box-shadow: 0 8px 28px rgba(0,0,0,.06);
 }
 body.night .home-bottom-dock { background: rgba(28,28,30,.9); border-color: #3a3a3c; }
+/* dock-ios-fix */
+
+.home-bottom-dock {
+  min-height: 64px !important;
+  min-width: 200px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 20 !important;
+}
+#page-home.active .home-bottom-dock,
+#page-home.active #homeDock {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.home-bottom-dock .hbd-item {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+.home-bottom-dock .hbd-icon {
+  width: 44px !important;
+  height: 44px !important;
+  color: #2a4a52 !important;
+}
+.home-bottom-dock .hbd-icon svg {
+  width: 26px !important;
+  height: 26px !important;
+  stroke: #2a4a52 !important;
+  fill: none !important;
+}
+.home-bottom-dock .hbd-name {
+  font-size: 10px !important;
+  color: #2a4a52 !important;
+  opacity: 1 !important;
+}
+
 .home-bottom-dock .hbd-item {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   cursor: pointer; min-width: 48px; color: var(--text);
@@ -2470,7 +2507,7 @@ body.night .loc-addr { color: #a1a1a6 !important; }
 
 // ===== IndexedDB 扩容存储 =====
 const IDB_NAME = 'graychat_idb';
-const EENOK_BUILD = '2026-08-22N';
+const EENOK_BUILD = '2026-08-22R';
 /** 检测版本变化；进入主界面后弹出「已更新」提醒 */
 function checkAppUpdate() {
   try {
@@ -2760,7 +2797,7 @@ async function saveAsync() {
   const keys = ['user','chars','groups','chats','moments','momentsBg','worldBooks','wallet','api','stickerLib',
     'personas','wbCategories','emojiCategories','customEmojis','favorites','theme','contactGroups',
     'officials','spaces','bookstore','pomodoro','scriptKill','melo','shop','takeout','altAccounts',
-    'home','icity','gal','phoneApp','sms','divProfile','divRecords','forumIG','countdown','world','memoryApp','prompts','loveApp'];
+    'home','icity','gal','phoneApp','sms','divProfile','divRecords','forumIG','countdown','world','memoryApp','prompts','loveApp','jiaApp','storeApp','vecMem'];
   try {
     for (const k of keys) {
       let v = state[k];
@@ -2895,6 +2932,9 @@ function save() {
     ['memoryApp', () => state.memoryApp || { items: [] }],
     ['prompts', () => state.prompts || {}],
     ['loveApp', () => state.loveApp || { letters: [] }],
+    ['jiaApp', () => state.jiaApp || { byChar: {} }],
+    ['storeApp', () => state.storeApp || { apps: [] }],
+    ['vecMem', () => state.vecMem || { items: [] }],
   ];
   // 后台 IDB（不阻塞 UI）
   if (typeof idbSet === 'function') {
@@ -3298,7 +3338,7 @@ async function loadFromIDB() {
     const keys = ['user','chars','groups','chats','moments','momentsBg','worldBooks','wallet','api','stickerLib',
       'personas','wbCategories','emojiCategories','customEmojis','favorites','theme','contactGroups',
       'officials','spaces','bookstore','pomodoro','scriptKill','melo','shop','takeout','altAccounts',
-      'home','icity','gal','phoneApp','sms','divProfile','divRecords','forumIG','countdown','world','lock','offlineStyles','memoryApp','prompts','loveApp'];
+      'home','icity','gal','phoneApp','sms','divProfile','divRecords','forumIG','countdown','world','lock','offlineStyles','memoryApp','prompts','loveApp','jiaApp','storeApp','vecMem'];
     for (const k of keys) {
       const v = await idbGet(k, undefined);
       if (v !== undefined) {
@@ -3651,6 +3691,9 @@ function closeSubPage() {
         if (root === 'charlib') { openCharLib(); return; }
         if (root === 'memory') { state._memFilter = null; state._subBackFn = null; openMemoryApp(); return; }
         if (root === 'love') { state._loveLetterId = null; openLoveApp(); return; }
+        if (root === 'jia') { openJiaApp(); return; }
+        if (root === 'store') { openStoreApp(); return; }
+        if (root === 'vecmem') { openVecMemApp(); return; }
         if (root === 'countdown') { openCountdownApp(state._cdTab||'all'); return; }
         if (root === 'sk' || kind === 'scriptkill') {
           state._skId = null;
@@ -3684,6 +3727,9 @@ function closeSubPage() {
         if (root === 'charlib') { openCharLib(); return; }
         if (root === 'memory') { state._memFilter=null; openMemoryApp(); return; }
         if (root === 'love') { state._loveLetterId = null; openLoveApp(); return; }
+        if (root === 'jia') { openJiaApp(); return; }
+        if (root === 'store') { openStoreApp(); return; }
+        if (root === 'vecmem') { openVecMemApp(); return; }
         if (root === 'countdown') { openCountdownApp('all'); return; }
         if (root === 'sk' || kind === 'scriptkill') { openScriptKill_HOME(); return; }
         if (root === 'divination') { openDivination(state._divTab || 'east'); return; }
@@ -6573,7 +6619,21 @@ ${userP.charKnows===false?'（对方可能使用了小号，你不一定知道�
         life +
         '必须按这个真实钟点说话：现在若是晚上七八点，禁止说「只剩几分钟就睡」「睡眠比聊天重要到必须立刻停」这类把时间说得过晚的话。' +
         '「刚刚/现在/等会儿/明天/昨天/晚上/凌晨」必须和真实时间一致。不要把已发生的事说成未发生。时间不确定就不要编具体几点。' +
-        '一句一句发，有消息间隔感，不要一次把所有话倒完。';
+        '一句一句发，有消息间隔感，不要一次把所有话倒完。' +
+        '若用户消息带有明确日期/时间，以用户所说为准并与当前真实时间对照，不得把旧话题当成正在发生。';
+      try {
+        if (typeof vecMemTop === 'function') {
+          var _vq = '';
+          try {
+            var _msgs = (chat.messages || []).slice(-3);
+            _vq = _msgs.map(function(m){ return m.text || m.content || ''; }).join(' ');
+          } catch(e) {}
+          var _vtop = vecMemTop(_vq || timeStr, 3);
+          if (_vtop && _vtop.length) {
+            system += '\n【向量记忆·相关片段】仅在自然需要时参考，禁止复述报告式：\n' + _vtop.map(function(x){ return '- '+x.text; }).join('\n');
+          }
+        }
+      } catch(e) {}
       if (longGap) {
         system += '\n【时间流逝·强制】从上一段对话到现在已经隔了较长时间。禁止像「刚聊完下一秒接着说」那样接话；' +
           '禁止把几天前正在进行的话题当成此刻仍在当面/刚挂断；若对方这轮是重新开口，应自然体现时间差（例如：有点久没聊、这几天、今天才回、前两天那事等，按真实间隔选词），' +
@@ -7134,6 +7194,21 @@ function onFontFileSelected(e) {
 function onFileSelected(e) {
   const files = [...(e.target.files || [])];
   if (!files.length) return;
+  if (state.fileTarget === 'storeHtmlImport') {
+    const file = files[0];
+    (async function() {
+      try {
+        await storeHandleImportFile(file);
+      } catch (err) {
+        showToast('导入失败：' + (err && err.message ? err.message : err));
+      } finally {
+        e.target.value = '';
+        e.target.accept = 'image/*';
+        state.fileTarget = '';
+      }
+    })();
+    return;
+  }
   if (state.fileTarget === 'charImport') {
     const file = files[0];
     const name = file.name || '';
@@ -17127,10 +17202,20 @@ function homeAllApps() {
     { id:'prompts', name:'提示词', open:'openPromptApp()' },
     { id:'charlib', name:'角色库', open:'openCharLib()' }, { id:'pickup', name:'捡手机', open:'openPickupPhone()' },
     { id:'love', name:'爱', open:'openLoveApp()' },
+    { id:'jia', name:'家', open:'openJiaApp()' },
+    { id:'store', name:'应用商店', open:'openStoreApp()' },
+    { id:'vecmem', name:'向量记忆', open:'openVecMemApp()' },
     { id:'settings', name:'设置', open:'openHomeSettingsPage()' },
     { id:'beauty', name:'美化', open:'openHomeBeauty()' },
     { id:'phone', name:'电话', open:'openPhonePad()' }
-  ];
+  ].concat((function(){
+    try {
+      if (typeof ensureStoreState === 'function') ensureStoreState();
+      return ((state.storeApp && state.storeApp.apps) || []).filter(function(a){ return a && a.onHome; }).map(function(a){
+        return { id: a.id, name: a.name || '应用', open: "openStoreAppById('"+String(a.id).replace(/'/g,"\\'")+"')", custom: true };
+      });
+    } catch(e) { return []; }
+  })());
 }
 
 function homeDefaultLayout_UNUSED() {
@@ -17266,6 +17351,9 @@ function homeEnsureDesktop() {
         { id:'worldbook', name:'世界书', open:'openWorldBook()' },
         { id:'charlib', name:'角色库', open:'openCharLib()' }, { id:'pickup', name:'捡手机', open:'openPickupPhone()' },
         { id:'love', name:'爱', open:'openLoveApp()' },
+    { id:'jia', name:'家', open:'openJiaApp()' },
+        { id:'store', name:'应用商店', open:'openStoreApp()' },
+    { id:'vecmem', name:'向量记忆', open:'openVecMemApp()' },
         { id:'settings', name:'设置', open:'openHomeSettingsPage()' },
         { id:'beauty', name:'美化', open:'openHomeBeauty()' },
         { id:'phone', name:'电话', open:'openPhonePad()' }
@@ -17309,7 +17397,7 @@ function renderHome() {
   }
   // 新 App 若布局里还没有，自动补一个空位，避免叠在 (0,0)
   (function ensureNewAppsInLayout() {
-    const need = ['love'];
+    const need = ['love','jia','store','vecmem'];
     const lay0 = state.home.layout || {};
     const m = typeof homeLayoutMetrics === 'function' ? homeLayoutMetrics() : null;
     need.forEach(function(id) {
@@ -17354,7 +17442,8 @@ function renderHome() {
     { id:'worldbook', name:'世界书', open:'openWorldBook()' },
     { id:'prompts', name:'提示词', open:'openPromptApp()' },
     { id:'charlib', name:'角色库', open:'openCharLib()' }, { id:'pickup', name:'捡手机', open:'openPickupPhone()' },
-    { id:'love', name:'爱', open:'openLoveApp()' }
+    { id:'love', name:'爱', open:'openLoveApp()' },
+    { id:'jia', name:'家', open:'openJiaApp()' }
   ];
   const icons = state.home.appIcons || {};
   const polaroid = state.home.widgets.polaroid || {};
@@ -17419,22 +17508,56 @@ function renderHome() {
   const svgPho = '<svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
 
   var _rawDock = (state.home.dockApps && state.home.dockApps.length) ? state.home.dockApps : ['settings','beauty','phone'];
+  var dockMeta = {
+    settings:{name:'设置',open:'openHomeSettingsPage()'},
+    beauty:{name:'美化',open:'openHomeBeauty()'},
+    phone:{name:'电话',open:'openPhonePad()'},
+    store:{name:'应用商店',open:'openStoreApp()'},
+    jia:{name:'家',open:'openJiaApp()'},
+    wechat:{name:'微信',open:'openWechatApp()'},
+    memory:{name:'记忆',open:'openMemoryApp()'}
+  };
   var dockItems = _rawDock.map(function(d){
-    if (typeof d === 'object' && d.id) return d;
-    var id = d;
-    var meta = {settings:{name:'设置',open:'openHomeSettingsPage()'},beauty:{name:'美化',open:'openHomeBeauty()'},phone:{name:'电话',open:'openPhonePad()'}};
-    var m = meta[id] || {name:id, open:''};
-    return {id:id, name:m.name, open:m.open};
-  });
+    var id = (typeof d === 'object' && d && d.id) ? d.id : d;
+    if (!id) return null;
+    var m = dockMeta[id] || {};
+    var name = (typeof d === 'object' && d.name) ? d.name : (m.name || id);
+    var open = (typeof d === 'object' && d.open) ? d.open : (m.open || '');
+    if (!open && typeof homeAllApps === 'function') {
+      try {
+        var hit = homeAllApps().find(function(a){ return a.id === id; });
+        if (hit && hit.open) open = hit.open;
+      } catch(e) {}
+    }
+    return { id: id, name: name, open: open || '' };
+  }).filter(Boolean);
+  if (!dockItems.length) {
+    dockItems = [
+      {id:'settings', name:'设置', open:'openHomeSettingsPage()'},
+      {id:'beauty', name:'美化', open:'openHomeBeauty()'},
+      {id:'phone', name:'电话', open:'openPhonePad()'}
+    ];
+    state.home.dockApps = ['settings','beauty','phone'];
+  }
   const dockHtml = dockItems.map(function(d) {
     const fb = d.id==='settings'?svgSet:(d.id==='beauty'?svgBea:(d.id==='phone'?svgPho:(typeof homeAppIconSvg==='function'?homeAppIconSvg(d.id):'')));
     return '<div class="hbd-item" data-dock="'+d.id+'" onclick="'+d.open+'"><div class="hbd-icon">'+dockIcon(d.id, fb)+'</div><div class="hbd-name">'+d.name+'</div></div>';
   }).join('');
 
   const dockPos = (state.home.layout && state.home.layout.dock) ? state.home.layout.dock : null;
-  const dockStyle = dockPos
-    ? ('left:'+dockPos.x+'px;bottom:auto;top:'+dockPos.y+'px;transform:none;right:auto')
-    : 'left:16px;right:16px;bottom:16px;top:auto;transform:none';
+  var dockStyle = 'left:16px;right:16px;bottom:16px;top:auto;transform:none;display:flex;opacity:1;visibility:visible';
+  if (dockPos && isFinite(dockPos.x) && isFinite(dockPos.y)) {
+    var maxW = (inner && inner.clientWidth) || 320;
+    var maxH = (inner && inner.clientHeight) || 568;
+    var dx = Math.max(8, Math.min(maxW - 80, dockPos.x));
+    var dy = Math.max(40, Math.min(maxH - 40, dockPos.y));
+    // 若坐标几乎不可见则回退默认底部
+    if (dy > maxH - 30 || dx < -20) {
+      dockStyle = 'left:16px;right:16px;bottom:16px;top:auto;transform:none;display:flex;opacity:1;visibility:visible';
+    } else {
+      dockStyle = 'left:'+dx+'px;bottom:auto;top:'+dy+'px;transform:none;right:auto;display:flex;opacity:1;visibility:visible';
+    }
+  }
 
   inner.innerHTML =
     '<div class="home-time-widget" id="homeTimeWidget">' +
@@ -17863,6 +17986,9 @@ function homeAppIconSvg(id) {
   if (id === 'bookstore') return '<svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
   if (id === 'tomato') return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
   if (id === 'love') return '<svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/><path d="M4 6l8 7 8-7"/><path d="M12 13l-3.5 3.2a2.2 2.2 0 003.1 0L12 13z" opacity=".35"/></svg>';
+  if (id === 'jia') return '<svg viewBox="0 0 24 24"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>';
+  if (id === 'store') return '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+  if (id === 'vecmem') return '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
 
   const icons = {
     wechat: '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
@@ -19117,6 +19243,1030 @@ function loveDeleteLetter(id) {
   loveCloseOverlay();
   openLoveApp();
 }
+
+
+/* ========== 家 · 像素世界家园 ========== */
+function ensureJiaState() {
+  if (!state.jiaApp || typeof state.jiaApp !== 'object') state.jiaApp = { byChar: {} };
+  if (!state.jiaApp.byChar || typeof state.jiaApp.byChar !== 'object') state.jiaApp.byChar = {};
+}
+function ensureJiaChar(charId) {
+  ensureJiaState();
+  if (!charId) return null;
+  if (!state.jiaApp.byChar[charId]) {
+    var n = Object.keys(state.jiaApp.byChar).length;
+    state.jiaApp.byChar[charId] = {
+      mapX: 14 + (n % 7) * 11 + (n % 3),
+      mapY: 16 + Math.floor(n / 7) * 14 + (n % 2) * 2,
+      house: { wall: '#c5e4ea', roof: '#7eb6c2', door: '#5a9aaa', trim: '#eef7f8', scale: 1 },
+      room: { floor: '#d4c4a0', wall: '#e8f2f4' },
+      furniture: [
+        { id: 'f_bed', type: 'bed', x: 22, y: 60 },
+        { id: 'f_table', type: 'table', x: 55, y: 44 },
+        { id: 'f_plant', type: 'plant', x: 78, y: 28 }
+      ],
+      avatar: {
+        skin: '#f0c8a8', hair: '#2a1a12', eyes: '#2a4a5a',
+        shirt: '#8ec0c8', pants: '#5a7880', shoes: '#3a3830',
+        hairStyle: 0, bodyStyle: 0
+      },
+      charX: 48, charY: 62
+    };
+  }
+  var d = state.jiaApp.byChar[charId];
+  if (!d.house) d.house = { wall: '#c5e4ea', roof: '#7eb6c2', door: '#5a9aaa', trim: '#eef7f8', scale: 1 };
+  if (!d.room) d.room = { floor: '#d4c4a0', wall: '#e8f2f4' };
+  if (!Array.isArray(d.furniture)) d.furniture = [];
+  if (!d.avatar) d.avatar = {};
+  var av = d.avatar;
+  if (!av.skin) av.skin = '#f0c8a8';
+  if (!av.hair) av.hair = '#2a1a12';
+  if (!av.eyes) av.eyes = '#2a4a5a';
+  if (!av.shirt) av.shirt = '#8ec0c8';
+  if (!av.pants) av.pants = '#5a7880';
+  if (!av.shoes) av.shoes = '#3a3830';
+  if (av.hairStyle == null) av.hairStyle = 0;
+  if (av.bodyStyle == null) av.bodyStyle = 0;
+  if (d.charX == null) d.charX = 48;
+  if (d.charY == null) d.charY = 62;
+  if (d.mapX == null) d.mapX = 20;
+  if (d.mapY == null) d.mapY = 20;
+  return d;
+}
+function jiaFurnitureMeta(type) {
+  var M = {
+    bed: { name: '床', w: 72, h: 48 },
+    table: { name: '圆桌', w: 52, h: 40 },
+    chair: { name: '椅', w: 32, h: 36 },
+    plant: { name: '盆栽', w: 30, h: 42 },
+    shelf: { name: '书架', w: 40, h: 60 },
+    lamp: { name: '落地灯', w: 26, h: 48 },
+    chest: { name: '矮柜', w: 56, h: 28 },
+    carpet: { name: '地毯', w: 76, h: 48 },
+    sofa: { name: '沙发', w: 72, h: 40 },
+    mural: { name: '壁画', w: 52, h: 40, wall: true },
+    counter: { name: '柜台', w: 64, h: 36 },
+    nightstand: { name: '床头柜', w: 30, h: 34 },
+    fan: { name: '台扇', w: 32, h: 38 },
+    hcabinet: { name: '横柜', w: 68, h: 30 }
+  };
+  return M[type] || { name: type, w: 36, h: 36 };
+}
+function jiaFurnPixelHtml(type) {
+  var t = type || 'table';
+  // 奶油简约风像素家具
+  function box(html) {
+    return '<div style="width:100%;height:100%;image-rendering:pixelated;position:relative;box-sizing:border-box;overflow:hidden">' + html + '</div>';
+  }
+  if (t === 'bed') return box(
+    '<div style="position:absolute;inset:0;background:#c4b09a"></div>'
+    + '<div style="position:absolute;left:4%;top:8%;width:92%;height:58%;background:#f2ebe0"></div>'
+    + '<div style="position:absolute;left:4%;top:8%;width:92%;height:16%;background:#e8dcc8"></div>'
+    + '<div style="position:absolute;left:8%;top:50%;width:34%;height:28%;background:#fff8f0"></div>'
+    + '<div style="position:absolute;left:0;right:0;bottom:0;height:14%;background:#b8a490"></div>');
+  if (t === 'table') return box(
+    '<div style="position:absolute;left:10%;top:22%;width:80%;height:36%;border-radius:50%;background:#e8dcc4"></div>'
+    + '<div style="position:absolute;left:18%;top:28%;width:64%;height:24%;border-radius:50%;background:#f4ece0"></div>'
+    + '<div style="position:absolute;left:44%;top:55%;width:12%;height:40%;background:#c4b09a"></div>');
+  if (t === 'chair') return box(
+    '<div style="position:absolute;left:22%;top:6%;width:56%;height:38%;background:#e8dcc4;border-radius:4px 4px 0 0"></div>'
+    + '<div style="position:absolute;left:16%;top:40%;width:68%;height:22%;background:#f0e6d8"></div>'
+    + '<div style="position:absolute;left:24%;top:62%;width:12%;height:34%;background:#c4b09a"></div>'
+    + '<div style="position:absolute;right:24%;top:62%;width:12%;height:34%;background:#c4b09a"></div>');
+  if (t === 'plant') return box(
+    '<div style="position:absolute;left:30%;bottom:0;width:40%;height:24%;background:#d4c4b0"></div>'
+    + '<div style="position:absolute;left:24%;bottom:20%;width:52%;height:10%;background:#c4b4a0"></div>'
+    + '<div style="position:absolute;left:28%;top:8%;width:44%;height:48%;background:#8fbc8f"></div>'
+    + '<div style="position:absolute;left:16%;top:24%;width:28%;height:28%;background:#7aaa7a"></div>');
+  if (t === 'shelf') return box(
+    '<div style="position:absolute;inset:0;background:#e8dcc8"></div>'
+    + '<div style="position:absolute;left:8%;top:12%;width:84%;height:8%;background:#d4c4b0"></div>'
+    + '<div style="position:absolute;left:8%;top:36%;width:84%;height:8%;background:#d4c4b0"></div>'
+    + '<div style="position:absolute;left:8%;top:60%;width:84%;height:8%;background:#d4c4b0"></div>'
+    + '<div style="position:absolute;left:14%;top:18%;width:20%;height:14%;background:#c8dde4"></div>'
+    + '<div style="position:absolute;left:42%;top:42%;width:24%;height:14%;background:#e8c8c8"></div>');
+  if (t === 'lamp') return box(
+    '<div style="position:absolute;left:28%;top:0;width:44%;height:30%;background:#fff6e8;box-shadow:0 0 12px rgba(255,240,200,.6)"></div>'
+    + '<div style="position:absolute;left:46%;top:30%;width:8%;height:50%;background:#d4c4b0"></div>'
+    + '<div style="position:absolute;left:30%;bottom:0;width:40%;height:12%;background:#c4b49a"></div>');
+  if (t === 'chest' || t === 'hcabinet') return box(
+    '<div style="position:absolute;left:0;top:20%;width:100%;height:80%;background:#e8dcc4"></div>'
+    + '<div style="position:absolute;left:0;top:20%;width:100%;height:14%;background:#f2e8dc"></div>'
+    + '<div style="position:absolute;left:8%;top:48%;width:38%;height:36%;background:#dcccb8"></div>'
+    + '<div style="position:absolute;right:8%;top:48%;width:38%;height:36%;background:#dcccb8"></div>'
+    + '<div style="position:absolute;left:22%;top:62%;width:10%;height:8%;background:#c4b09a"></div>'
+    + '<div style="position:absolute;right:22%;top:62%;width:10%;height:8%;background:#c4b09a"></div>');
+  if (t === 'carpet') return box(
+    '<div style="position:absolute;inset:0;background:#f0e4d4;box-shadow:inset 0 0 0 5px #e0d0bc"></div>'
+    + '<div style="position:absolute;inset:18%;border:3px solid #e8dcc8"></div>');
+  if (t === 'sofa') return box(
+    '<div style="position:absolute;left:4%;top:30%;width:92%;height:48%;background:#f0e8e0"></div>'
+    + '<div style="position:absolute;left:4%;top:8%;width:16%;height:55%;background:#e8ddd4"></div>'
+    + '<div style="position:absolute;right:4%;top:8%;width:16%;height:55%;background:#e8ddd4"></div>'
+    + '<div style="position:absolute;left:10%;bottom:0;width:12%;height:18%;background:#d4c4b0"></div>'
+    + '<div style="position:absolute;right:10%;bottom:0;width:12%;height:18%;background:#d4c4b0"></div>');
+  if (t === 'mural') return box(
+    '<div style="position:absolute;inset:0;background:#f7f2ea;border:4px solid #d4c4b0"></div>'
+    + '<div style="position:absolute;left:14%;top:18%;width:72%;height:55%;background:#c8dde8"></div>'
+    + '<div style="position:absolute;left:22%;top:30%;width:28%;height:30%;background:#a8c8a8"></div>'
+    + '<div style="position:absolute;right:20%;top:24%;width:22%;height:22%;background:#f0e0b0"></div>');
+  if (t === 'counter') return box(
+    '<div style="position:absolute;left:0;top:32%;width:100%;height:68%;background:#e8dcc4"></div>'
+    + '<div style="position:absolute;left:0;top:24%;width:100%;height:16%;background:#f4ece0"></div>'
+    + '<div style="position:absolute;left:10%;top:52%;width:28%;height:30%;background:#dcccb8"></div>');
+  if (t === 'nightstand') return box(
+    '<div style="position:absolute;left:12%;top:18%;width:76%;height:82%;background:#e8dcc4"></div>'
+    + '<div style="position:absolute;left:12%;top:18%;width:76%;height:14%;background:#f4ece0"></div>'
+    + '<div style="position:absolute;left:32%;top:48%;width:36%;height:14%;background:#d4c4b0"></div>');
+  if (t === 'fan') return box(
+    '<div style="position:absolute;left:16%;top:4%;width:68%;height:52%;border-radius:50%;background:#f0ece6;box-shadow:inset 0 0 0 4px #d4c8bc"></div>'
+    + '<div style="position:absolute;left:46%;top:52%;width:8%;height:34%;background:#d4c4b0"></div>'
+    + '<div style="position:absolute;left:28%;bottom:0;width:44%;height:12%;background:#c4b49a"></div>');
+  return box('<div style="position:absolute;inset:0;background:#e8dcc4"></div>');
+}
+function jiaPixelCharHtml(av, size) {
+  size = size || 52;
+  av = av || {};
+  var skin = av.skin || '#f0c8a8';
+  var hair = av.hair || '#2a1a12';
+  var eyes = av.eyes || '#2a4a5a';
+  var shirt = av.shirt || '#8ec0c8';
+  var pants = av.pants || '#5a7880';
+  var shoes = av.shoes || '#3a3830';
+  var hs = Number(av.hairStyle) || 0;
+  var s = size;
+  // 层序：身体 → 脸 → 眼睛 → 头发（含刘海盖在额上）
+  var hairLayer = '';
+  if (hs === 0) { // 短发
+    hairLayer = '<div style="position:absolute;left:20%;top:4%;width:60%;height:28%;background:'+hair+'"></div>';
+  } else if (hs === 1) { // 双马尾
+    hairLayer = '<div style="position:absolute;left:20%;top:4%;width:60%;height:30%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;left:4%;top:22%;width:18%;height:48%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;right:4%;top:22%;width:18%;height:48%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;left:24%;top:22%;width:52%;height:10%;background:'+hair+'"></div>';
+  } else if (hs === 2) { // 顶发
+    hairLayer = '<div style="position:absolute;left:22%;top:0;width:56%;height:18%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;left:24%;top:14%;width:52%;height:16%;background:'+hair+'"></div>';
+  } else if (hs === 3) { // 长披肩
+    hairLayer = '<div style="position:absolute;left:18%;top:4%;width:64%;height:34%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;left:8%;top:28%;width:22%;height:50%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;right:8%;top:28%;width:22%;height:50%;background:'+hair+'"></div>';
+  } else if (hs === 4) { // 齐刘海 — 必须盖住额头
+    hairLayer = '<div style="position:absolute;left:18%;top:4%;width:64%;height:26%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;left:22%;top:22%;width:56%;height:14%;background:'+hair+';z-index:3"></div>'
+      + '<div style="position:absolute;left:10%;top:30%;width:18%;height:36%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;right:10%;top:30%;width:18%;height:36%;background:'+hair+'"></div>';
+  } else if (hs === 5) { // 黑长直
+    hairLayer = '<div style="position:absolute;left:16%;top:2%;width:68%;height:32%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;left:6%;top:26%;width:24%;height:58%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;right:6%;top:26%;width:24%;height:58%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;left:24%;top:24%;width:52%;height:10%;background:'+hair+'"></div>';
+  } else if (hs === 6) { // 微分碎盖
+    hairLayer = '<div style="position:absolute;left:18%;top:4%;width:64%;height:28%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;left:20%;top:20%;width:26%;height:16%;background:'+hair+';z-index:3"></div>'
+      + '<div style="position:absolute;left:44%;top:18%;width:34%;height:14%;background:'+hair+';z-index:3"></div>'
+      + '<div style="position:absolute;left:8%;top:32%;width:18%;height:40%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;right:8%;top:32%;width:18%;height:40%;background:'+hair+'"></div>';
+  } else if (hs === 7) { // 斜刘海
+    hairLayer = '<div style="position:absolute;left:18%;top:4%;width:64%;height:28%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;left:18%;top:18%;width:58%;height:16%;background:'+hair+';z-index:3;clip-path:polygon(0 0,100% 20%,100% 100%,0 70%)"></div>'
+      + '<div style="position:absolute;left:8%;top:30%;width:18%;height:42%;background:'+hair+'"></div>'
+      + '<div style="position:absolute;right:8%;top:30%;width:20%;height:42%;background:'+hair+'"></div>';
+  } else {
+    hairLayer = '<div style="position:absolute;left:20%;top:4%;width:60%;height:30%;background:'+hair+'"></div>';
+  }
+  return '<div class="jia-px-char" style="width:'+s+'px;height:'+s+'px;image-rendering:pixelated;position:relative;flex-shrink:0">'
+    + '<div style="position:absolute;left:24%;top:50%;width:52%;height:26%;background:'+shirt+'"></div>'
+    + '<div style="position:absolute;left:16%;top:54%;width:12%;height:18%;background:'+skin+'"></div>'
+    + '<div style="position:absolute;right:16%;top:54%;width:12%;height:18%;background:'+skin+'"></div>'
+    + '<div style="position:absolute;left:28%;top:74%;width:18%;height:16%;background:'+pants+'"></div>'
+    + '<div style="position:absolute;left:54%;top:74%;width:18%;height:16%;background:'+pants+'"></div>'
+    + '<div style="position:absolute;left:28%;top:88%;width:18%;height:10%;background:'+shoes+'"></div>'
+    + '<div style="position:absolute;left:54%;top:88%;width:18%;height:10%;background:'+shoes+'"></div>'
+    + '<div style="position:absolute;left:28%;top:22%;width:44%;height:30%;background:'+skin+'"></div>'
+    + '<div style="position:absolute;left:34%;top:32%;width:8%;height:8%;background:'+eyes+'"></div>'
+    + '<div style="position:absolute;left:58%;top:32%;width:8%;height:8%;background:'+eyes+'"></div>'
+    + hairLayer
+    + '</div>';
+}
+
+function jiaHouseSvg(house, w) {
+  house = house || {};
+  w = w || 180;
+  var h = Math.round(w * 1.05);
+  var wall = house.wall || '#c5e4ea';
+  var roof = house.roof || '#7eb6c2';
+  var door = house.door || '#5a9aaa';
+  var trim = house.trim || '#eef7f8';
+  return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 80 84" shape-rendering="crispEdges" style="image-rendering:pixelated;filter:drop-shadow(0 4px 0 rgba(40,80,90,.15))">'
+    + '<rect x="0" y="58" width="80" height="26" fill="#9ec9a8"/>'
+    + '<rect x="2" y="60" width="6" height="6" fill="#7ab08a"/><rect x="12" y="66" width="6" height="6" fill="#7ab08a"/>'
+    + '<rect x="64" y="62" width="6" height="6" fill="#7ab08a"/>'
+    + '<rect x="8" y="30" width="64" height="8" fill="'+roof+'"/>'
+    + '<rect x="14" y="22" width="52" height="8" fill="'+roof+'"/>'
+    + '<rect x="20" y="14" width="40" height="8" fill="'+roof+'"/>'
+    + '<rect x="28" y="6" width="24" height="8" fill="'+roof+'"/>'
+    + '<rect x="16" y="38" width="48" height="32" fill="'+wall+'"/>'
+    + '<rect x="16" y="38" width="48" height="4" fill="'+trim+'"/>'
+    + '<rect x="34" y="50" width="12" height="20" fill="'+door+'"/>'
+    + '<rect x="42" y="58" width="3" height="3" fill="'+trim+'"/>'
+    + '<rect x="20" y="44" width="10" height="10" fill="#b0dce4"/>'
+    + '<rect x="50" y="44" width="10" height="10" fill="#b0dce4"/>'
+    + '<rect x="20" y="48" width="10" height="2" fill="'+trim+'"/><rect x="24" y="44" width="2" height="10" fill="'+trim+'"/>'
+    + '<rect x="50" y="48" width="10" height="2" fill="'+trim+'"/><rect x="54" y="44" width="2" height="10" fill="'+trim+'"/>'
+    + '</svg>';
+}
+var JIA_LINES = [
+  '今天天气不错。', '要不要在院子里走走？', '这间屋子我很喜欢。', '……嗯。',
+  '肚子有点饿了。', '水色的墙好舒服。', '你来啦。', '我再整理一下房间。',
+  '呼——', '在想事情。', '要喝茶吗？', '地板换颜色也不错。'
+];
+var JIA_HAIR_NAMES = ['短发','双马尾','顶发','长披肩','齐刘海','黑长直','微分碎盖','斜刘海'];
+
+function openJiaApp() {
+  ensureJiaState();
+  // 入口强制地图，禁止穿透到小屋
+  state._homeRoot = 'jia';
+  state._subKind = 'jia';
+  state._homeDepth = 0;
+  state._jiaCharId = null;
+  state._jiaEditFurn = false;
+  state._jiaEditAvatar = false;
+  state._jiaEditHouse = false;
+  state._jiaEditRoom = false;
+  state._jiaBubble = '';
+  state._jiaEditMap = !!state._jiaEditMap;
+  state._subBackFn = function(){ goHome(); };
+  try { if (state._subStack) state._subStack = []; } catch(e) {}
+  armClickGuard(480);
+  var chars = state.chars || [];
+  chars.forEach(function(c){ if (c && c.id) ensureJiaChar(c.id); });
+  var discs = chars.map(function(c) {
+    if (!c || !c.id) return '';
+    var d = ensureJiaChar(c.id);
+    var name = escapeHtml(c.nick || c.realName || '角色');
+    var av = avatarUrl(c);
+    return '<div class="jia-disc" data-cid="'+c.id+'" style="left:'+d.mapX+'%;top:'+d.mapY+'%" '
+      + 'onclick="if(!state._jiaDragging)openJiaHomestead(\''+c.id+'\')">'
+      + '<div class="jia-disc-ring">'
+      + (av ? '<img src="'+av+'" alt="">' : '<div class="jia-disc-ph">'+(name[0]||'?')+'</div>')
+      + '</div>'
+      + '<div class="jia-disc-name">'+name+'</div></div>';
+  }).join('');
+  var html = '<div class="jia-root">'
+    + '<style>'
+    + '.jia-root{position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#e8f4f6,#d0e8ee);color:#3a5a62;overflow:hidden}'
+    + '.jia-top{flex-shrink:0;padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.72);backdrop-filter:blur(10px);z-index:5;border-bottom:1px solid rgba(120,180,190,.25)}'
+    + '.jia-top h2{font-size:18px;font-weight:700;letter-spacing:.06em;margin:0;color:#2a4a52}'
+    + '.jia-top .sub{font-size:11px;color:#6a8a92;margin-top:3px}'
+    + '.jia-btn{border:none;background:rgba(120,180,190,.18);color:#3a5a62;border-radius:12px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600}'
+    + '.jia-btn.on{background:#7eb8c4;color:#fff}'
+    + '.jia-map{flex:1;position:relative;overflow:auto;min-height:0;'
+    + 'background-color:#c8e6ea;'
+    + 'background-image:linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(#d4eef0 50%,#c8e6ea 50%),linear-gradient(90deg,#d4eef0 50%,#c8e6ea 50%);'
+    + 'background-size:14px 14px,14px 14px,28px 28px,28px 28px;image-rendering:pixelated}'
+    + '.jia-map-inner{position:relative;width:220%;min-width:720px;height:220%;min-height:720px}'
+    + '.jia-path{position:absolute;background:#e8f4f6;box-shadow:inset 0 0 0 2px #b0d4dc;image-rendering:pixelated;border-radius:2px}'
+    + '.jia-water{position:absolute;background:linear-gradient(135deg,#a8d8e4,#90c8d8);box-shadow:inset 0 0 0 2px #78b0c0;opacity:.85;border-radius:4px}'
+    + '.jia-disc{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:pointer;z-index:3;width:92px}'
+    + '.jia-disc-ring{width:76px;height:76px;margin:0 auto;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 3px #a8d4dc,0 6px 16px rgba(80,140,150,.25);overflow:hidden;background:#e0f0f4;animation:jiaSpin 16s linear infinite}'
+    + '.jia-disc-ring img{width:100%;height:100%;object-fit:cover}'
+    + '.jia-disc-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#7aa}'
+    + '.jia-disc-name{margin-top:6px;font-size:12px;font-weight:700;color:#2a4a52;text-shadow:0 1px 0 #fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:92px;margin-left:auto;margin-right:auto}'
+    + '@keyframes jiaSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}'
+    + '.jia-hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:11px;background:rgba(255,255,255,.85);color:#4a6a72;padding:7px 16px;border-radius:999px;z-index:4;pointer-events:none;box-shadow:0 2px 10px rgba(80,140,150,.15)}'
+    + '</style>'
+    + '<div class="jia-top"><div><h2>家</h2><div class="sub">水色像素世界 · 点圆盘进入家园</div></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button type="button" class="jia-btn'+(state._jiaEditMap?' on':'')+'" onclick="state._jiaEditMap=!state._jiaEditMap;openJiaApp()">'+ (state._jiaEditMap?'完成排布':'排布位置') +'</button>'
+    + '<button type="button" class="jia-btn" onclick="goHome()">退出</button></div></div>'
+    + '<div class="jia-map" id="jiaMapScroll"><div class="jia-map-inner" id="jiaMapInner">'
+    + '<div class="jia-water" style="left:8%;top:10%;width:30%;height:16%"></div>'
+    + '<div class="jia-water" style="left:60%;top:55%;width:24%;height:14%"></div>'
+    + '<div class="jia-path" style="left:6%;top:42%;width:88%;height:14px"></div>'
+    + '<div class="jia-path" style="left:46%;top:8%;width:14px;height:84%"></div>'
+    + discs
+    + '</div><div class="jia-hint">'+(chars.length? (state._jiaEditMap?'拖动圆盘调整位置':'点击角色圆盘进入家园') : '请先在角色库添加角色')+'</div></div></div>';
+  openSubPage('', html, '', { replace: true });
+  try { var sn = document.getElementById('subNav'); if (sn) sn.style.display = 'none'; } catch(e) {}
+  if (state._jiaEditMap) jiaBindMapDrag();
+}
+function jiaBindMapDrag() {
+  var inner = document.getElementById('jiaMapInner');
+  if (!inner) return;
+  inner.querySelectorAll('.jia-disc').forEach(function(el) {
+    var cid = el.getAttribute('data-cid');
+    var startX, startY, origLeft, origTop, moved;
+    function onStart(ev) {
+      ev.preventDefault();
+      state._jiaDragging = false; moved = false;
+      var t = ev.touches ? ev.touches[0] : ev;
+      startX = t.clientX; startY = t.clientY;
+      origLeft = parseFloat(el.style.left) || 20;
+      origTop = parseFloat(el.style.top) || 20;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onEnd);
+    }
+    function onMove(ev) {
+      var t = ev.touches ? ev.touches[0] : ev;
+      var dx = t.clientX - startX, dy = t.clientY - startY;
+      if (Math.abs(dx) + Math.abs(dy) > 6) { moved = true; state._jiaDragging = true; }
+      if (!moved) return;
+      ev.preventDefault();
+      var rect = inner.getBoundingClientRect();
+      var nx = Math.max(4, Math.min(96, origLeft + (dx / rect.width) * 100));
+      var ny = Math.max(6, Math.min(94, origTop + (dy / rect.height) * 100));
+      el.style.left = nx + '%'; el.style.top = ny + '%';
+      el._jiaNX = nx; el._jiaNY = ny;
+    }
+    function onEnd() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onEnd);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      if (moved) {
+        var d = ensureJiaChar(cid);
+        if (d) {
+          d.mapX = el._jiaNX != null ? el._jiaNX : parseFloat(el.style.left);
+          d.mapY = el._jiaNY != null ? el._jiaNY : parseFloat(el.style.top);
+          try { save(); } catch(e) {}
+        }
+      }
+      setTimeout(function(){ state._jiaDragging = false; }, 80);
+    }
+    el.addEventListener('mousedown', onStart);
+    el.addEventListener('touchstart', onStart, { passive: false });
+  });
+}
+function openJiaHomestead(charId) {
+  ensureJiaState();
+  var c = (state.chars || []).find(function(x){ return x && x.id === charId; });
+  if (!c) { showToast('找不到角色'); return; }
+  var d = ensureJiaChar(charId);
+  state._jiaCharId = charId;
+  state._homeRoot = 'jia';
+  state._homeDepth = 1;
+  state._subBackFn = function(){ openJiaApp(); };
+  armClickGuard(400);
+  var name = escapeHtml(c.nick || c.realName || '角色');
+  var house = d.house;
+  var html = '<div class="jia-root">'
+    + '<style>'
+    + '.jia-root{position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#dff0f4 0%,#c8e4ec 42%,#b5d4c0 42%,#a8cbb0 100%);color:#2a4a52;overflow:hidden}'
+    + '.jia-top{flex-shrink:0;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.7);backdrop-filter:blur(8px)}'
+    + '.jia-top h2{font-size:16px;margin:0}'
+    + '.jia-btn{border:none;background:rgba(126,184,196,.22);color:#2a4a52;border-radius:12px;padding:7px 12px;font-size:12px;cursor:pointer;font-weight:600}'
+    + '.jia-yard{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;min-height:0;'
+    + 'background-image:linear-gradient(rgba(255,255,255,.25) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.25) 1px,transparent 1px);background-size:14px 14px;image-rendering:pixelated}'
+    + '.jia-house-wrap{cursor:pointer;image-rendering:pixelated}'
+    + '.jia-yard-label{margin-top:14px;font-size:12px;background:rgba(255,255,255,.8);padding:6px 14px;border-radius:999px;color:#4a6a72}'
+    + '.jia-edit-panel{flex-shrink:0;padding:12px 14px 20px;background:rgba(255,255,255,.88);border-top:1px solid rgba(120,180,190,.3);max-height:40%;overflow-y:auto}'
+    + '.jia-colors{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}'
+    + '.jia-swatch{width:30px;height:30px;border-radius:8px;border:2px solid transparent;cursor:pointer}'
+    + '.jia-swatch.on{border-color:#2a4a52;box-shadow:0 0 0 2px #fff}'
+    + '</style>'
+    + '<div class="jia-top"><div><h2>'+name+' 的家园</h2><div style="font-size:11px;opacity:.65">水色像素小屋 · 点房子进入内部</div></div>'
+    + '<div style="display:flex;gap:8px"><button type="button" class="jia-btn" onclick="openJiaApp()">地图</button>'
+    + '<button type="button" class="jia-btn" onclick="state._jiaEditHouse=!state._jiaEditHouse;openJiaHomestead(\''+charId+'\')">'+(state._jiaEditHouse?'完成外观':'外观设计')+'</button></div></div>'
+    + '<div class="jia-yard"><div class="jia-house-wrap" onclick="if(!state._jiaEditHouse)openJiaInterior(\''+charId+'\')">'
+    + jiaHouseSvg(house, 188)
+    + '</div><div class="jia-yard-label">点小房子进入室内</div></div>';
+  if (state._jiaEditHouse) {
+    var walls = ['#c5e4ea','#e8f0f2','#d8e8e0','#e8e0d8','#e0dce8','#d0e4e8'];
+    var roofs = ['#7eb6c2','#a890b0','#8aab8a','#b09080','#6a9ab0','#9a9a88'];
+    var doors = ['#5a9aaa','#8a6a5a','#6a8a6a','#5a6a8a','#aa7a5a'];
+    html += '<div class="jia-edit-panel"><div style="font-size:12px;font-weight:700">墙体</div><div class="jia-colors">'
+      + walls.map(function(col){ return '<div class="jia-swatch'+(house.wall===col?' on':'')+'" style="background:'+col+'" onclick="jiaSetHouse(\''+charId+'\',\'wall\',\''+col+'\')"></div>'; }).join('')
+      + '</div><div style="font-size:12px;font-weight:700;margin-top:10px">屋顶</div><div class="jia-colors">'
+      + roofs.map(function(col){ return '<div class="jia-swatch'+(house.roof===col?' on':'')+'" style="background:'+col+'" onclick="jiaSetHouse(\''+charId+'\',\'roof\',\''+col+'\')"></div>'; }).join('')
+      + '</div><div style="font-size:12px;font-weight:700;margin-top:10px">门</div><div class="jia-colors">'
+      + doors.map(function(col){ return '<div class="jia-swatch'+(house.door===col?' on':'')+'" style="background:'+col+'" onclick="jiaSetHouse(\''+charId+'\',\'door\',\''+col+'\')"></div>'; }).join('')
+      + '</div></div>';
+  }
+  html += '</div>';
+  openSubPage('', html, '', { replace: true });
+  try { var sn=document.getElementById('subNav'); if(sn) sn.style.display='none'; } catch(e) {}
+}
+function jiaSetHouse(charId, key, val) {
+  var d = ensureJiaChar(charId);
+  if (!d || !d.house) return;
+  d.house[key] = val;
+  try { save(); } catch(e) {}
+  openJiaHomestead(charId);
+}
+function jiaSetRoom(charId, key, val) {
+  var d = ensureJiaChar(charId);
+  if (!d) return;
+  if (!d.room) d.room = { floor: '#d4c4a0', wall: '#e8f2f4' };
+  d.room[key] = val;
+  try { save(); } catch(e) {}
+  state._jiaEditRoom = true;
+  openJiaInterior(charId);
+}
+function openJiaInterior(charId) {
+  ensureJiaState();
+  var c = (state.chars || []).find(function(x){ return x && x.id === charId; });
+  if (!c) { showToast('找不到角色'); return; }
+  var d = ensureJiaChar(charId);
+  state._jiaCharId = charId;
+  state._jiaEditFurn = !!state._jiaEditFurn;
+  state._jiaEditAvatar = !!state._jiaEditAvatar;
+  state._jiaEditRoom = !!state._jiaEditRoom;
+  state._homeRoot = 'jia';
+  state._homeDepth = 2;
+  state._subBackFn = function(){ state._jiaEditFurn=false; state._jiaEditAvatar=false; state._jiaEditRoom=false; openJiaHomestead(charId); };
+  armClickGuard(400);
+  var name = escapeHtml(c.nick || c.realName || '角色');
+  var types = ['bed','table','chair','plant','shelf','lamp','hcabinet','carpet','sofa','mural','counter','nightstand','fan'];
+  var floor = (d.room && d.room.floor) || '#d4c4a0';
+  var wallC = (d.room && d.room.wall) || '#e8f2f4';
+  var furnHtml = (d.furniture || []).map(function(f) {
+    var meta = jiaFurnitureMeta(f.type);
+    var isWall = !!(meta.wall || f.type === 'mural');
+    var fy = f.y;
+    if (isWall && fy > 28) fy = 14 + (fy % 10);
+    return '<div class="jia-furn" data-fid="'+f.id+'" data-wall="'+(isWall?'1':'0')+'" style="left:'+f.x+'%;top:'+fy+'%;width:'+meta.w+'px;height:'+meta.h+'px;z-index:'+(isWall?3:2)+'">'
+      + jiaFurnPixelHtml(f.type) + '</div>';
+  }).join('');
+  var bubble = state._jiaBubble
+    ? '<div class="jia-bubble" id="jiaBubble">'+escapeHtml(state._jiaBubble)+'</div>'
+    : '<div class="jia-bubble" id="jiaBubble" style="display:none"></div>';
+  var html = '<div class="jia-root">'
+    + '<style>'
+    + '.jia-root{position:absolute;inset:0;display:flex;flex-direction:column;background:#1e3038;color:#e8f4f6;overflow:hidden}'
+    + '.jia-top{flex-shrink:0;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,.35);z-index:6}'
+    + '.jia-btn{border:none;background:rgba(255,255,255,.12);color:#e8f4f6;border-radius:10px;padding:6px 10px;font-size:12px;cursor:pointer}'
+    + '.jia-btn.on{background:#7eb8c4;color:#0a2024}'
+    + '.jia-room{flex:1;position:relative;margin:10px;overflow:hidden;min-height:0;border-radius:10px;'
+    + 'background-color:'+floor+';'
+    + 'background-image:linear-gradient(rgba(0,0,0,.05) 2px,transparent 2px),linear-gradient(90deg,rgba(0,0,0,.05) 2px,transparent 2px);'
+    + 'background-size:16px 16px;image-rendering:pixelated;border:3px solid #c4b49a}'
+    + '.jia-wall-zone{position:absolute;left:0;right:0;top:0;height:32%;background:'+wallC+';'
+    + 'background-image:linear-gradient(rgba(0,0,0,.04) 2px,transparent 2px);background-size:16px 16px;border-bottom:3px solid rgba(0,0,0,.08);z-index:1;pointer-events:none}'
+    + '.jia-furn[data-wall="1"]{z-index:3}'
+    + '.jia-furn{position:absolute;transform:translate(-50%,-50%);cursor:grab;z-index:2;image-rendering:pixelated}'
+    + '.jia-char-sprite{position:absolute;transform:translate(-50%,-50%);z-index:5;cursor:pointer;filter:drop-shadow(0 2px 0 rgba(0,0,0,.2))}'
+    + '.jia-bubble{position:absolute;z-index:8;left:50%;bottom:24%;transform:translateX(-50%);max-width:78%;padding:10px 12px;background:#f8f4e8;color:#2a2820;border:3px solid #2a2820;font-size:13px;line-height:1.4;box-shadow:3px 3px 0 #000;pointer-events:none}'
+    + '.jia-bubble::after{content:"";position:absolute;left:18px;bottom:-9px;width:12px;height:10px;background:#f8f4e8;border-right:3px solid #2a2820;border-bottom:3px solid #2a2820;transform:skewX(-20deg)}'
+    + '.jia-palette{flex-shrink:0;padding:10px 12px 16px;background:rgba(0,0,0,.48);display:none;max-height:44%;overflow-y:auto}'
+    + '.jia-palette.show{display:block}'
+    + '.jia-pal-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;flex-wrap:wrap}'
+    + '.jia-pal-item{flex:0 0 auto;padding:8px;border-radius:10px;background:rgba(255,255,255,.1);font-size:11px;cursor:pointer;text-align:center;min-width:56px}'
+    + '.jia-move{position:absolute;bottom:12px;right:12px;display:grid;grid-template-columns:repeat(3,40px);gap:4px;z-index:6}'
+    + '.jia-move button{width:40px;height:40px;border:none;border-radius:10px;background:rgba(20,40,48,.8);color:#fff;font-size:16px;cursor:pointer}'
+    + '.jia-move .sp{visibility:hidden}'
+    + '</style>'
+    + '<div class="jia-top"><div><div style="font-size:15px;font-weight:700">'+name+' 的小屋</div>'
+    + '<div style="font-size:11px;opacity:.7">点小人改形象 · 走动会说话</div></div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+    + '<button type="button" class="jia-btn" onclick="openJiaHomestead(\''+charId+'\')">院外</button>'
+    + '<button type="button" class="jia-btn'+(state._jiaEditRoom?' on':'')+'" onclick="state._jiaEditRoom=!state._jiaEditRoom;state._jiaEditFurn=false;state._jiaEditAvatar=false;openJiaInterior(\''+charId+'\')">墙地</button>'
+    + '<button type="button" class="jia-btn'+(state._jiaEditFurn?' on':'')+'" onclick="state._jiaEditFurn=!state._jiaEditFurn;state._jiaEditAvatar=false;state._jiaEditRoom=false;openJiaInterior(\''+charId+'\')">家具</button>'
+    + '<button type="button" class="jia-btn'+(state._jiaEditAvatar?' on':'')+'" onclick="state._jiaEditAvatar=!state._jiaEditAvatar;state._jiaEditFurn=false;state._jiaEditRoom=false;openJiaInterior(\''+charId+'\')">形象</button>'
+    + '</div></div>'
+    + '<div class="jia-room" id="jiaRoom" style="--jia-floor:'+floor+';--jia-wall:'+wallC+'">'
+    + '<div class="jia-wall-zone" id="jiaWallZone"></div>'
+    + furnHtml
+    + '<div class="jia-char-sprite" id="jiaCharSprite" style="left:'+d.charX+'%;top:'+d.charY+'%" '
+    + 'onclick="event.stopPropagation();state._jiaEditAvatar=true;state._jiaEditFurn=false;state._jiaEditRoom=false;openJiaInterior(\''+charId+'\')">'
+    + jiaPixelCharHtml(d.avatar, 56)
+    + '</div>'
+    + bubble
+    + '<div class="jia-move">'
+    + '<span class="sp"></span><button type="button" onclick="jiaMoveChar(\''+charId+'\',0,-7)">↑</button><span class="sp"></span>'
+    + '<button type="button" onclick="jiaMoveChar(\''+charId+'\',-7,0)">←</button>'
+    + '<button type="button" onclick="jiaMoveChar(\''+charId+'\',0,7)">↓</button>'
+    + '<button type="button" onclick="jiaMoveChar(\''+charId+'\',7,0)">→</button>'
+    + '</div></div>';
+  if (state._jiaEditRoom) {
+    var floors = ['#d4c4a0','#c8b898','#e0d4c0','#b8c8c0','#d0d8e0','#e8d8d0'];
+    var walls = ['#e8f2f4','#f0e8e0','#e0e8f0','#e8e0e8','#e0f0e8','#f4f0e8'];
+    html += '<div class="jia-palette show"><div style="font-size:12px;margin-bottom:6px">地板</div><div class="jia-pal-row">'
+      + floors.map(function(col){ return '<div class="jia-pal-item" style="background:'+col+';width:32px;height:32px;padding:0;min-width:32px;border:2px solid '+(floor===col?'#7eb8c4':'transparent')+'" onclick="jiaSetRoom(\''+charId+'\',\'floor\',\''+col+'\')"></div>'; }).join('')
+      + '</div><div style="font-size:12px;margin:10px 0 6px">墙纸</div><div class="jia-pal-row">'
+      + walls.map(function(col){ return '<div class="jia-pal-item" style="background:'+col+';width:32px;height:32px;padding:0;min-width:32px;border:2px solid '+(wallC===col?'#7eb8c4':'transparent')+'" onclick="jiaSetRoom(\''+charId+'\',\'wall\',\''+col+'\')"></div>'; }).join('')
+      + '</div></div>';
+  }
+  if (state._jiaEditFurn) {
+    html += '<div class="jia-palette show"><div style="font-size:12px;margin-bottom:8px;opacity:.85">点选添加 · 拖动移动 · 长按删除</div><div class="jia-pal-row">'
+      + types.map(function(t) {
+        var m = jiaFurnitureMeta(t);
+        return '<div class="jia-pal-item" onclick="jiaAddFurniture(\''+charId+'\',\''+t+'\')">'
+          + '<div style="width:40px;height:32px;margin:0 auto 4px;position:relative">'+jiaFurnPixelHtml(t)+'</div>'
+          + m.name + '</div>';
+      }).join('')
+      + '</div></div>';
+  }
+  if (state._jiaEditAvatar) {
+    var av = d.avatar;
+    var skins = ['#f0c8a8','#e8b898','#c6865a','#8d5524','#f5d0c0'];
+    var hairs = ['#2a1a12','#1a1a1a','#6b4423','#c4a035','#e8e0d0','#5a3a6a','#2a4a6a'];
+    var eyes = ['#2a4a5a','#3a5a3a','#5a3a2a','#2a2a4a','#4a6a8a','#1a1a1a'];
+    var shirts = ['#8ec0c8','#e891a6','#8abf88','#c4a070','#9a8fd0','#f0e8e0','#5a7a9a'];
+    var pants = ['#5a7880','#4a4a5a','#6a5a4a','#3a5a4a','#5a4a6a'];
+    var shoes = ['#3a3830','#5a4030','#2a2a2a','#6a5050','#4a5a60'];
+    html += '<div class="jia-palette show">'
+      + '<div style="display:flex;justify-content:center;margin-bottom:10px">'+jiaPixelCharHtml(av, 60)+'</div>'
+      + '<div style="font-size:12px;margin-bottom:6px">发型</div><div class="jia-pal-row">'
+      + [0,1,2,3,4,5,6,7].map(function(hs){
+        return '<div class="jia-pal-item" style="'+(Number(av.hairStyle)===hs?'outline:2px solid #7eb8c4':'')+'" onclick="jiaSetAvatar(\''+charId+'\',\'hairStyle\','+hs+')">'+JIA_HAIR_NAMES[hs]+'</div>';
+      }).join('')
+      + '</div><div style="font-size:12px;margin:8px 0 6px">发色</div><div class="jia-pal-row">'
+      + hairs.map(function(col){ return '<div class="jia-pal-item" style="background:'+col+';width:28px;height:28px;padding:0;min-width:28px" onclick="jiaSetAvatar(\''+charId+'\',\'hair\',\''+col+'\')"></div>'; }).join('')
+      + '</div><div style="font-size:12px;margin:8px 0 6px">瞳色</div><div class="jia-pal-row">'
+      + eyes.map(function(col){ return '<div class="jia-pal-item" style="background:'+col+';width:28px;height:28px;padding:0;min-width:28px" onclick="jiaSetAvatar(\''+charId+'\',\'eyes\',\''+col+'\')"></div>'; }).join('')
+      + '</div><div style="font-size:12px;margin:8px 0 6px">肤色</div><div class="jia-pal-row">'
+      + skins.map(function(col){ return '<div class="jia-pal-item" style="background:'+col+';width:28px;height:28px;padding:0;min-width:28px" onclick="jiaSetAvatar(\''+charId+'\',\'skin\',\''+col+'\')"></div>'; }).join('')
+      + '</div><div style="font-size:12px;margin:8px 0 6px">上衣</div><div class="jia-pal-row">'
+      + shirts.map(function(col){ return '<div class="jia-pal-item" style="background:'+col+';width:28px;height:28px;padding:0;min-width:28px" onclick="jiaSetAvatar(\''+charId+'\',\'shirt\',\''+col+'\')"></div>'; }).join('')
+      + '</div><div style="font-size:12px;margin:8px 0 6px">下装</div><div class="jia-pal-row">'
+      + pants.map(function(col){ return '<div class="jia-pal-item" style="background:'+col+';width:28px;height:28px;padding:0;min-width:28px" onclick="jiaSetAvatar(\''+charId+'\',\'pants\',\''+col+'\')"></div>'; }).join('')
+      + '</div><div style="font-size:12px;margin:8px 0 6px">鞋子</div><div class="jia-pal-row">'
+      + shoes.map(function(col){ return '<div class="jia-pal-item" style="background:'+col+';width:28px;height:28px;padding:0;min-width:28px" onclick="jiaSetAvatar(\''+charId+'\',\'shoes\',\''+col+'\')"></div>'; }).join('')
+      + '</div></div>';
+  }
+  html += '</div>';
+  openSubPage('', html, '', { replace: true });
+  try { var sn=document.getElementById('subNav'); if(sn) sn.style.display='none'; } catch(e) {}
+  if (state._jiaEditFurn) jiaBindFurnitureDrag(charId);
+  if (state._jiaBubble) {
+    setTimeout(function(){
+      state._jiaBubble = '';
+      var b = document.getElementById('jiaBubble');
+      if (b) { b.style.display = 'none'; }
+    }, 2200);
+  }
+}
+function jiaShowBubble(text) {
+  state._jiaBubble = text || '';
+  var b = document.getElementById('jiaBubble');
+  if (b) { b.textContent = text; b.style.display = 'block'; }
+}
+function jiaMoveChar(charId, dx, dy) {
+  var d = ensureJiaChar(charId);
+  if (!d) return;
+  d.charX = Math.max(10, Math.min(90, (d.charX || 48) + dx));
+  d.charY = Math.max(18, Math.min(86, (d.charY || 62) + dy));
+  try { save(); } catch(e) {}
+  var el = document.getElementById('jiaCharSprite');
+  if (el) { el.style.left = d.charX + '%'; el.style.top = d.charY + '%'; }
+  jiaShowBubble(JIA_LINES[Math.floor(Math.random() * JIA_LINES.length)]);
+  clearTimeout(state._jiaBubbleTimer);
+  state._jiaBubbleTimer = setTimeout(function(){
+    state._jiaBubble = '';
+    var b = document.getElementById('jiaBubble');
+    if (b) b.style.display = 'none';
+  }, 2400);
+}
+function jiaSetAvatar(charId, key, val) {
+  var d = ensureJiaChar(charId);
+  if (!d) return;
+  if (!d.avatar) d.avatar = {};
+  d.avatar[key] = val;
+  try { save(); } catch(e) {}
+  state._jiaEditAvatar = true;
+  state._jiaEditFurn = false;
+  state._jiaEditRoom = false;
+  openJiaInterior(charId);
+}
+function jiaAddFurniture(charId, type) {
+  var d = ensureJiaChar(charId);
+  if (!d) return;
+  if (!d.furniture) d.furniture = [];
+  d.furniture.push({ id: 'f_' + Date.now() + '_' + Math.floor(Math.random()*999), type: type, x: 28 + Math.random() * 44, y: 30 + Math.random() * 44 });
+  try { save(); } catch(e) {}
+  state._jiaEditFurn = true;
+  openJiaInterior(charId);
+}
+function jiaBindFurnitureDrag(charId) {
+  var room = document.getElementById('jiaRoom');
+  if (!room) return;
+  room.querySelectorAll('.jia-furn').forEach(function(el) {
+    var fid = el.getAttribute('data-fid');
+    var startX, startY, origLeft, origTop, moved, longT;
+    function onStart(ev) {
+      ev.preventDefault(); ev.stopPropagation(); moved = false;
+      var t = ev.touches ? ev.touches[0] : ev;
+      startX = t.clientX; startY = t.clientY;
+      origLeft = parseFloat(el.style.left) || 50;
+      origTop = parseFloat(el.style.top) || 50;
+      longT = setTimeout(function() {
+        if (!moved && confirm('删除这个家具？')) {
+          var d = ensureJiaChar(charId);
+          if (d) {
+            d.furniture = (d.furniture || []).filter(function(f){ return f.id !== fid; });
+            try { save(); } catch(e) {}
+            state._jiaEditFurn = true;
+            openJiaInterior(charId);
+          }
+        }
+      }, 650);
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onEnd);
+    }
+    function onMove(ev) {
+      var t = ev.touches ? ev.touches[0] : ev;
+      var dx = t.clientX - startX, dy = t.clientY - startY;
+      if (Math.abs(dx) + Math.abs(dy) > 5) { moved = true; clearTimeout(longT); }
+      if (!moved) return;
+      ev.preventDefault();
+      var rect = room.getBoundingClientRect();
+      var nx = Math.max(5, Math.min(95, origLeft + (dx / rect.width) * 100));
+      var ny = Math.max(12, Math.min(92, origTop + (dy / rect.height) * 100));
+      el.style.left = nx + '%'; el.style.top = ny + '%';
+      el._nx = nx; el._ny = ny;
+    }
+    function onEnd() {
+      clearTimeout(longT);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onEnd);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      if (moved) {
+        var d = ensureJiaChar(charId);
+        var f = (d.furniture || []).find(function(x){ return x.id === fid; });
+        if (f) {
+          f.x = el._nx != null ? el._nx : parseFloat(el.style.left);
+          f.y = el._ny != null ? el._ny : parseFloat(el.style.top);
+          try { save(); } catch(e) {}
+        }
+      }
+    }
+    el.addEventListener('mousedown', onStart);
+    el.addEventListener('touchstart', onStart, { passive: false });
+  });
+}
+
+/* ========== 应用商店 · 本地导入小应用 ========== */
+function ensureStoreState() {
+  if (!state.storeApp || typeof state.storeApp !== 'object') state.storeApp = { apps: [] };
+  if (!Array.isArray(state.storeApp.apps)) state.storeApp.apps = [];
+}
+function openStoreApp() {
+  ensureStoreState();
+  state._homeRoot = 'store';
+  state._subKind = 'store';
+  state._homeDepth = 0;
+  state._subBackFn = function(){ goHome(); };
+  armClickGuard(400);
+  var apps = state.storeApp.apps || [];
+  var list = apps.length ? apps.map(function(a, i) {
+    return '<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin:0 14px 10px;border-radius:16px;background:rgba(255,255,255,.85);border:1px solid rgba(120,180,190,.25)">'
+      + '<div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(145deg,#c8e8ee,#a8d4dc);display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden">'
+      + (a.icon ? (String(a.icon).indexOf('data:')===0 ? '<img src="'+a.icon+'" style="width:100%;height:100%;object-fit:cover">' : escapeHtml(a.icon)) : '🎮')
+      + '</div>'
+      + '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;color:#2a4a52">'+escapeHtml(a.name||'未命名')+'</div>'
+      + '<div style="font-size:11px;color:#7a9aa2;margin-top:2px">'+(a.onHome?'已在主屏幕':'未固定到主屏幕')+' · '+(a.type||'html')+'</div></div>'
+      + '<button type="button" onclick="openStoreItem(\''+a.id+'\')" style="border:none;background:#7eb8c4;color:#fff;border-radius:10px;padding:6px 10px;font-size:12px;cursor:pointer">打开</button>'
+      + '<button type="button" onclick="toggleStoreOnHome(\''+a.id+'\')" style="border:none;background:rgba(126,184,196,.2);color:#3a5a62;border-radius:10px;padding:6px 10px;font-size:12px;cursor:pointer">'+(a.onHome?'取消固定':'固定')+'</button>'
+      + '<button type="button" onclick="deleteStoreApp(\''+a.id+'\')" style="border:none;background:transparent;color:#c07070;font-size:16px;cursor:pointer;padding:4px">×</button>'
+      + '</div>';
+  }).join('') : '<div style="text-align:center;padding:48px 20px;color:#7a9aa2;font-size:13px">还没有导入应用<br>点下方导入本地 HTML / 文本小游戏</div>';
+
+  var html = '<div style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#f2f8fa,#e4eef2);color:#2a4a52">'
+    + '<div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.75);border-bottom:1px solid rgba(120,180,190,.2)">'
+    + '<div><div style="font-size:18px;font-weight:700">应用商店</div><div style="font-size:11px;color:#7a9aa2;margin-top:2px">导入本地文件 · 固定到主屏幕</div></div>'
+    + '<button type="button" onclick="goHome()" style="border:none;background:rgba(126,184,196,.2);border-radius:12px;padding:7px 14px;font-size:12px;cursor:pointer;color:#3a5a62">退出</button></div>'
+    + '<div style="flex:1;overflow-y:auto;padding:14px 0 100px">'
+    + '<div style="padding:0 14px 8px;font-size:12px;color:#7a9aa2;font-weight:600">内置小游戏</div>'
+    + '<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin:0 14px 10px;border-radius:16px;background:rgba(255,255,255,.85);border:1px solid rgba(120,180,190,.25)">'
+    + '<div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(145deg,#e8dcc4,#d4c4a8);display:flex;align-items:center;justify-content:center;font-size:22px">●</div>'
+    + '<div style="flex:1"><div style="font-weight:700;font-size:14px;color:#2a4a52">五子棋</div><div style="font-size:11px;color:#7a9aa2;margin-top:2px">可与角色对战</div></div>'
+    + '<button type="button" onclick="openGomokuGame()" style="border:none;background:#7eb8c4;color:#fff;border-radius:10px;padding:6px 12px;font-size:12px;cursor:pointer">开始</button></div>'
+    + '<div style="padding:8px 14px 8px;font-size:12px;color:#7a9aa2;font-weight:600">我的导入</div>'
+    + list + '</div>'
+    + '<div style="position:absolute;left:0;right:0;bottom:0;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));background:rgba(255,255,255,.9);border-top:1px solid rgba(120,180,190,.2);display:flex;gap:10px">'
+    + '<button type="button" onclick="storeImportLocal()" style="flex:1;border:none;background:linear-gradient(145deg,#8ec4ce,#6aaab6);color:#fff;border-radius:14px;padding:14px;font-size:14px;font-weight:600;cursor:pointer">导入本地文件</button>'
+    + '</div></div>';
+  openSubPage('', html, '', { replace: true });
+  try { var sn=document.getElementById('subNav'); if(sn) sn.style.display='none'; } catch(e) {}
+}
+function storeImportLocal() {
+  state.fileTarget = 'storeHtmlImport';
+  var input = document.getElementById('fileInput');
+  if (!input) { showToast('文件选择不可用'); return; }
+  input.accept = '.html,.htm,.txt,.md,text/html,text/plain';
+  input.click();
+}
+async function storeHandleImportFile(file) {
+  ensureStoreState();
+  if (!file) return;
+  var name = (file.name || '小应用').replace(/\.(html?|txt|md)$/i, '');
+  var text = '';
+  try {
+    text = await new Promise(function(resolve, reject) {
+      var r = new FileReader();
+      r.onload = function(){ resolve(String(r.result || '')); };
+      r.onerror = reject;
+      r.readAsText(file);
+    });
+  } catch(e) {
+    showToast('读取失败');
+    return;
+  }
+  if (!text || text.length < 4) { showToast('文件内容为空'); return; }
+  if (text.length > 4.5 * 1024 * 1024) {
+    showToast('文件过大（建议 < 4.5MB）');
+    return;
+  }
+  var html = text;
+  if (!/<\s*html|<\s*body|<\s*div|<\s*canvas/i.test(text)) {
+    html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:sans-serif;padding:16px;line-height:1.6;background:#f7fafb;color:#2a4a52}pre{white-space:pre-wrap}</style></head><body><pre>'+text.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];})+'</pre></body></html>';
+  }
+  var id = 'store_' + Date.now();
+  var app = {
+    id: id,
+    name: name.slice(0, 24),
+    type: 'html',
+    icon: '🎮',
+    onHome: true,
+    ts: Date.now(),
+    size: text.length
+  };
+  // 大文件：HTML 存 IDB，state 只留元数据，避免卡顿/白屏
+  if (text.length > 200 * 1024 && typeof idbSet === 'function') {
+    try {
+      await idbSet('storeBlob_' + id, html);
+      app.blobKey = 'storeBlob_' + id;
+      app.html = ''; // 不塞进 localStorage 状态
+    } catch(e) {
+      app.html = html;
+    }
+  } else {
+    app.html = html;
+  }
+  state.storeApp.apps.unshift(app);
+  try { save(); } catch(e) {}
+  showToast('已导入' + (app.blobKey ? '（大文件模式）' : '') + '并固定到主屏幕');
+  openStoreApp();
+}
+function openStoreItem(id) {
+  ensureStoreState();
+  var a = (state.storeApp.apps || []).find(function(x){ return x.id === id; });
+  if (!a) { showToast('应用不存在'); return; }
+  state._homeRoot = 'store';
+  state._subBackFn = function(){ openStoreApp(); };
+  openSubPage('', '<div style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0e1a1e">'
+    + '<div style="flex-shrink:0;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.08);color:#e8f4f6">'
+    + '<div style="font-size:14px;font-weight:600">'+escapeHtml(a.name||'应用')+'</div>'
+    + '<button type="button" onclick="openStoreApp()" style="border:none;background:rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:6px 12px;font-size:12px;cursor:pointer">返回</button></div>'
+    + '<div id="storeLoading" style="padding:24px;text-align:center;color:#9ab;font-size:13px">加载中…</div>'
+    + '<iframe id="storeFrame" sandbox="allow-scripts allow-forms allow-modals" style="flex:1;width:100%;border:none;background:#fff;display:none"></iframe></div>', '', { replace: true });
+  try { var sn=document.getElementById('subNav'); if(sn) sn.style.display='none'; } catch(e) {}
+  (async function(){
+    var html = a.html || '';
+    try {
+      if ((!html || html.length < 8) && a.blobKey && typeof idbGet === 'function') {
+        html = await idbGet(a.blobKey, '') || '';
+      }
+    } catch(e) {}
+    var f = document.getElementById('storeFrame');
+    var ld = document.getElementById('storeLoading');
+    if (!html) {
+      if (ld) ld.textContent = '内容为空或未能从存储读取';
+      return;
+    }
+    try {
+      var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      if (f) {
+        f.style.display = 'block';
+        f.onload = function(){ try { URL.revokeObjectURL(url); } catch(e) {} if (ld) ld.style.display='none'; };
+        f.src = url;
+      }
+      if (ld) ld.style.display = 'none';
+    } catch(e) {
+      if (ld) ld.textContent = '打开失败：' + (e.message||e);
+    }
+  })();
+}
+
+function toggleStoreOnHome(id) {
+  ensureStoreState();
+  var a = (state.storeApp.apps || []).find(function(x){ return x.id === id; });
+  if (!a) return;
+  a.onHome = !a.onHome;
+  try { save(); } catch(e) {}
+  openStoreApp();
+  showToast(a.onHome ? '已固定到主屏幕' : '已从主屏幕移除（应用商店内仍保留）');
+}
+function deleteStoreApp(id) {
+  ensureStoreState();
+  if (!confirm('删除该应用？')) return;
+  state.storeApp.apps = (state.storeApp.apps || []).filter(function(x){ return x.id !== id; });
+  try { save(); } catch(e) {}
+  openStoreApp();
+}
+function openStoreAppById(id) {
+  openStoreItem(id);
+}
+
+
+/* ========== 五子棋 ========== */
+function openGomokuGame() {
+  state._homeRoot = 'store';
+  state._subBackFn = function(){ openStoreApp(); };
+  var chars = state.chars || [];
+  var opts = chars.map(function(c){
+    return '<option value="'+c.id+'">'+escapeHtml(c.nick||c.realName||'角色')+'</option>';
+  }).join('');
+  var html = '<div style="position:absolute;inset:0;display:flex;flex-direction:column;background:#f7f2ea;color:#2a4a52">'
+    + '<div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.85);border-bottom:1px solid #e8dcc8">'
+    + '<div style="font-weight:700">五子棋</div>'
+    + '<button type="button" onclick="openStoreApp()" style="border:none;background:#e8dcc4;border-radius:10px;padding:6px 12px;font-size:12px;cursor:pointer">返回</button></div>'
+    + '<div style="padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    + '<span style="font-size:12px">对手</span><select id="gomokuRival" style="flex:1;min-width:120px;padding:6px 8px;border-radius:8px;border:1px solid #d4c4b0">'
+    + '<option value="">（本地 AI）</option>'+opts+'</select>'
+    + '<button type="button" onclick="gomokuReset()" style="border:none;background:#7eb8c4;color:#fff;border-radius:10px;padding:6px 12px;font-size:12px;cursor:pointer">重开</button></div>'
+    + '<div style="flex:1;display:flex;align-items:center;justify-content:center;padding:8px"><canvas id="gomokuCanvas" width="300" height="300" style="max-width:100%;background:#e8d4a8;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.08);touch-action:none"></canvas></div>'
+    + '<div id="gomokuStatus" style="text-align:center;padding:10px;font-size:13px;color:#6a8a72">你执黑 · 点击落子</div></div>';
+  openSubPage('', html, '', { replace: true });
+  try { var sn=document.getElementById('subNav'); if(sn) sn.style.display='none'; } catch(e) {}
+  setTimeout(gomokuInit, 60);
+}
+function gomokuInit() {
+  state._gomoku = { size: 15, board: [], turn: 1, over: false };
+  var n = 15;
+  for (var i=0;i<n;i++) { state._gomoku.board[i]=[]; for (var j=0;j<n;j++) state._gomoku.board[i][j]=0; }
+  var c = document.getElementById('gomokuCanvas');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  function draw() {
+    var w = c.width, cell = w / 16;
+    ctx.fillStyle = '#e8d4a8'; ctx.fillRect(0,0,w,w);
+    ctx.strokeStyle = '#b89868';
+    for (var i=0;i<15;i++) {
+      ctx.beginPath(); ctx.moveTo(cell, cell+i*cell); ctx.lineTo(cell*15, cell+i*cell); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cell+i*cell, cell); ctx.lineTo(cell+i*cell, cell*15); ctx.stroke();
+    }
+    for (var y=0;y<15;y++) for (var x=0;x<15;x++) {
+      var v = state._gomoku.board[y][x];
+      if (!v) continue;
+      ctx.beginPath();
+      ctx.arc(cell+x*cell, cell+y*cell, cell*0.4, 0, Math.PI*2);
+      ctx.fillStyle = v===1 ? '#222' : '#f8f8f8';
+      ctx.fill();
+      ctx.strokeStyle = '#666'; ctx.stroke();
+    }
+  }
+  state._gomoku.draw = draw;
+  draw();
+  c.onclick = function(ev) {
+    if (state._gomoku.over || state._gomoku.turn !== 1) return;
+    var rect = c.getBoundingClientRect();
+    var cell = c.width / 16;
+    var scaleX = c.width / rect.width, scaleY = c.height / rect.height;
+    var x = Math.round(((ev.clientX-rect.left)*scaleX - cell)/cell);
+    var y = Math.round(((ev.clientY-rect.top)*scaleY - cell)/cell);
+    if (x<0||y<0||x>14||y>14) return;
+    if (state._gomoku.board[y][x]) return;
+    state._gomoku.board[y][x] = 1;
+    draw();
+    if (gomokuCheck(1)) { state._gomoku.over = true; document.getElementById('gomokuStatus').textContent = '你赢了！'; return; }
+    state._gomoku.turn = 2;
+    document.getElementById('gomokuStatus').textContent = '对手思考中…';
+    setTimeout(gomokuAiMove, 280);
+  };
+}
+function gomokuReset() { openGomokuGame(); }
+function gomokuCheck(p) {
+  var b = state._gomoku.board, n=15;
+  function line(y,x,dy,dx) {
+    var c=1;
+    for (var i=1;i<5;i++) { var yy=y+dy*i,xx=x+dx*i; if(yy<0||xx<0||yy>=n||xx>=n||b[yy][xx]!==p) break; c++; }
+    for (var i=1;i<5;i++) { var yy=y-dy*i,xx=x-dx*i; if(yy<0||xx<0||yy>=n||xx>=n||b[yy][xx]!==p) break; c++; }
+    return c>=5;
+  }
+  for (var y=0;y<n;y++) for (var x=0;x<n;x++) if (b[y][x]===p) {
+    if (line(y,x,0,1)||line(y,x,1,0)||line(y,x,1,1)||line(y,x,1,-1)) return true;
+  }
+  return false;
+}
+function gomokuAiMove() {
+  if (!state._gomoku || state._gomoku.over) return;
+  var b = state._gomoku.board, best=null, score=-1;
+  for (var y=0;y<15;y++) for (var x=0;x<15;x++) if (!b[y][x]) {
+    var s = 0;
+    // 简单权重：靠近中心 + 靠近已有棋子
+    s += 8 - Math.abs(7-x) - Math.abs(7-y);
+    for (var dy=-2;dy<=2;dy++) for (var dx=-2;dx<=2;dx++) {
+      var yy=y+dy,xx=x+dx;
+      if (yy>=0&&xx>=0&&yy<15&&xx<15&&b[yy][xx]) s += b[yy][xx]===2 ? 5 : 3;
+    }
+    if (s > score) { score=s; best={x:x,y:y}; }
+  }
+  if (!best) { document.getElementById('gomokuStatus').textContent = '平局'; state._gomoku.over=true; return; }
+  b[best.y][best.x] = 2;
+  if (state._gomoku.draw) state._gomoku.draw();
+  if (gomokuCheck(2)) {
+    state._gomoku.over = true;
+    var sel = document.getElementById('gomokuRival');
+    var nm = '对手';
+    if (sel && sel.value) {
+      var ch = (state.chars||[]).find(function(c){ return c.id===sel.value; });
+      if (ch) nm = ch.nick || ch.realName || nm;
+    }
+    document.getElementById('gomokuStatus').textContent = nm + ' 赢了';
+    return;
+  }
+  state._gomoku.turn = 1;
+  document.getElementById('gomokuStatus').textContent = '你执黑 · 点击落子';
+}
+
+/* ========== 向量记忆 App（轻量本地相似度 + 可选 API embedding） ========== */
+function ensureVecMem() {
+  if (!state.vecMem || typeof state.vecMem !== 'object') state.vecMem = { items: [] };
+  if (!Array.isArray(state.vecMem.items)) state.vecMem.items = [];
+}
+function openVecMemApp() {
+  ensureVecMem();
+  state._homeRoot = 'vecmem';
+  state._subBackFn = function(){ goHome(); };
+  var items = (state.vecMem.items || []).slice().sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+  var list = items.length ? items.slice(0, 40).map(function(it){
+    return '<div style="padding:12px 14px;margin:0 14px 8px;border-radius:14px;background:rgba(255,255,255,.88);border:1px solid rgba(120,180,190,.22)">'
+      + '<div style="font-size:13px;color:#2a4a52;line-height:1.45">'+escapeHtml((it.text||'').slice(0,120))+'</div>'
+      + '<div style="font-size:11px;color:#8aa;margin-top:6px">'+escapeHtml(it.tag||'记忆')+' · '+new Date(it.ts||0).toLocaleString()+'</div></div>';
+  }).join('') : '<div style="text-align:center;padding:40px;color:#8aa;font-size:13px">暂无向量条目<br>可从下方添加，或在聊天中自动写入摘要</div>';
+  var html = '<div style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#f2f8fa,#e8f0f2);color:#2a4a52">'
+    + '<div style="padding:14px 16px;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.8)">'
+    + '<div><div style="font-weight:700;font-size:17px">向量记忆</div><div style="font-size:11px;color:#7a9aa2">本地相似度检索 · 辅助长期记忆</div></div>'
+    + '<button type="button" onclick="goHome()" style="border:none;background:rgba(126,184,196,.2);border-radius:10px;padding:6px 12px;font-size:12px;cursor:pointer">退出</button></div>'
+    + '<div style="padding:10px 14px;display:flex;gap:8px">'
+    + '<input id="vecQuery" placeholder="输入要检索的内容" style="flex:1;padding:10px 12px;border-radius:12px;border:1px solid #c8dde4;font-size:13px">'
+    + '<button type="button" onclick="vecMemSearch()" style="border:none;background:#7eb8c4;color:#fff;border-radius:12px;padding:0 14px;font-size:13px;cursor:pointer">检索</button></div>'
+    + '<div id="vecResults" style="flex:1;overflow-y:auto;padding-bottom:90px">'+list+'</div>'
+    + '<div style="position:absolute;left:0;right:0;bottom:0;padding:12px 14px;background:rgba(255,255,255,.92);display:flex;gap:8px">'
+    + '<input id="vecAdd" placeholder="添加一条记忆文本" style="flex:1;padding:10px 12px;border-radius:12px;border:1px solid #c8dde4;font-size:13px">'
+    + '<button type="button" onclick="vecMemAdd()" style="border:none;background:#5a9aaa;color:#fff;border-radius:12px;padding:0 14px;cursor:pointer">添加</button></div></div>';
+  openSubPage('', html, '', { replace: true });
+  try { var sn=document.getElementById('subNav'); if(sn) sn.style.display='none'; } catch(e) {}
+}
+function vecTokenize(t) {
+  t = String(t || '').toLowerCase();
+  var parts = t.split(/[\s,，。！？、；;:：\n\r\.\!\?\/\\]+/).filter(function(x){ return x.length > 0; });
+  var chars = t.replace(/\s/g,'').split('');
+  return parts.concat(chars.filter(function(c){ return /[\u4e00-\u9fff]/.test(c); }));
+}
+function vecSim(a, b) {
+  var ta = vecTokenize(a), tb = vecTokenize(b);
+  if (!ta.length || !tb.length) return 0;
+  var setB = {};
+  tb.forEach(function(x){ setB[x]=1; });
+  var inter = 0;
+  var seen = {};
+  ta.forEach(function(x){ if (setB[x] && !seen[x]) { inter++; seen[x]=1; } });
+  return inter / Math.sqrt(ta.length * tb.length);
+}
+function vecMemAdd() {
+  ensureVecMem();
+  var el = document.getElementById('vecAdd');
+  var text = (el && el.value || '').trim();
+  if (!text) { showToast('请输入内容'); return; }
+  state.vecMem.items.unshift({ id: 'v'+Date.now(), text: text, tag: '手动', ts: Date.now() });
+  if (state.vecMem.items.length > 300) state.vecMem.items.length = 300;
+  try { save(); } catch(e) {}
+  openVecMemApp();
+}
+function vecMemSearch() {
+  ensureVecMem();
+  var q = ((document.getElementById('vecQuery')||{}).value || '').trim();
+  if (!q) { showToast('输入检索内容'); return; }
+  var scored = (state.vecMem.items||[]).map(function(it){
+    return { it: it, s: vecSim(q, it.text||'') };
+  }).filter(function(x){ return x.s > 0.02; }).sort(function(a,b){ return b.s - a.s; }).slice(0, 15);
+  var box = document.getElementById('vecResults');
+  if (!box) return;
+  if (!scored.length) { box.innerHTML = '<div style="text-align:center;padding:30px;color:#8aa">没有相似记忆</div>'; return; }
+  box.innerHTML = scored.map(function(x){
+    return '<div style="padding:12px 14px;margin:0 14px 8px;border-radius:14px;background:rgba(255,255,255,.9);border:1px solid rgba(120,180,190,.25)">'
+      + '<div style="font-size:11px;color:#7eb8c4;margin-bottom:4px">相似度 '+(x.s*100).toFixed(1)+'%</div>'
+      + '<div style="font-size:13px;color:#2a4a52;line-height:1.45">'+escapeHtml((x.it.text||'').slice(0,160))+'</div></div>';
+  }).join('');
+}
+/** 供聊天调用：写入一条向量记忆 */
+function vecMemPush(text, tag) {
+  try {
+    ensureVecMem();
+    text = String(text || '').trim();
+    if (text.length < 4) return;
+    state.vecMem.items.unshift({ id: 'v'+Date.now(), text: text.slice(0, 400), tag: tag || '聊天', ts: Date.now() });
+    if (state.vecMem.items.length > 300) state.vecMem.items.length = 300;
+  } catch(e) {}
+}
+/** 供聊天调用：取与 query 最相关的几条 */
+function vecMemTop(query, n) {
+  ensureVecMem();
+  n = n || 3;
+  return (state.vecMem.items||[]).map(function(it){
+    return { text: it.text, s: vecSim(query, it.text||''), tag: it.tag };
+  }).filter(function(x){ return x.s > 0.03; }).sort(function(a,b){ return b.s-a.s; }).slice(0, n);
+}
+
 
 function openOfflineApp() {
   resetHomeNav('offline');
